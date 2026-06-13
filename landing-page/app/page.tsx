@@ -29,7 +29,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { LogoBrand, LogoIcon } from "./components/Logo";
-import TerminalFlow from "./components/TerminalFlow";
+import InteractiveOrbits from "./components/InteractiveOrbits";
 import Comparison from "./components/Comparison";
 import Architecture from "./components/Architecture";
 
@@ -55,16 +55,15 @@ export default function Home() {
 
           {/* Desktop Nav Links */}
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-500">
-            <a href="#features" className="hover:text-indigo-600 transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-indigo-600 transition-colors">How It Works</a>
-            <a href="#security" className="hover:text-indigo-600 transition-colors">Security</a>
-            <a href="#docs" className="hover:text-indigo-600 transition-colors">Docs</a>
-            <a href="#pricing" className="hover:text-indigo-600 transition-colors">Pricing</a>
+            <a href="#features" className="hover:text-indigo-650 transition-colors">Product</a>
+            <a href="#how-it-works" className="hover:text-indigo-650 transition-colors">How It Works</a>
+            <a href="#security" className="hover:text-indigo-650 transition-colors">Docs</a>
+            <a href="#pricing" className="hover:text-indigo-650 transition-colors">Pricing</a>
             <a
               href="https://github.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-indigo-600 transition-colors flex items-center gap-1"
+              className="hover:text-indigo-650 transition-colors flex items-center gap-1"
             >
               GitHub
             </a>
@@ -72,12 +71,15 @@ export default function Home() {
 
           {/* CTA / Mobile Menu toggle */}
           <div className="flex items-center gap-4">
+            <a href="#" className="hidden sm:inline-flex text-sm font-semibold text-slate-700 hover:text-slate-900 mr-2 transition-colors">
+              Log in
+            </a>
             <a
               href="#installation"
-              className="hidden sm:inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-[0_4px_14px_rgba(79,70,229,0.25)] hover:shadow-[0_4px_20px_rgba(79,70,229,0.35)] transition-all"
+              className="hidden sm:inline-flex items-center gap-1.5 bg-zinc-950 hover:bg-zinc-900 text-white text-xs font-bold px-5 py-2.5 rounded-full transition-all"
             >
               Get Started
-              <ArrowRight size={14} className="stroke-[2.5]" />
+              <ArrowRight size={13} className="stroke-[2.5]" />
             </a>
             
             <button
@@ -96,52 +98,45 @@ export default function Home() {
             <a
               href="#features"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-semibold text-slate-500 hover:text-indigo-600"
+              className="block text-sm font-semibold text-slate-500 hover:text-indigo-650"
             >
-              Features
+              Product
             </a>
             <a
               href="#how-it-works"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-semibold text-slate-500 hover:text-indigo-600"
+              className="block text-sm font-semibold text-slate-500 hover:text-indigo-650"
             >
               How It Works
             </a>
             <a
               href="#security"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-semibold text-slate-500 hover:text-indigo-600"
-            >
-              Security
-            </a>
-            <a
-              href="#docs"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-semibold text-slate-500 hover:text-indigo-600"
+              className="block text-sm font-semibold text-slate-500 hover:text-indigo-650"
             >
               Docs
             </a>
             <a
               href="#pricing"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-semibold text-slate-500 hover:text-indigo-600"
+              className="block text-sm font-semibold text-slate-500 hover:text-indigo-650"
             >
               Pricing
             </a>
             <a
               href="https://github.com"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-semibold text-slate-500 hover:text-indigo-600"
+              className="block text-sm font-semibold text-slate-500 hover:text-indigo-650"
             >
               GitHub
             </a>
             <a
               href="#installation"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-3 rounded-full w-full shadow-md transition-colors"
+              className="flex items-center justify-center gap-1.5 bg-zinc-950 hover:bg-zinc-900 text-white text-sm font-bold py-3 rounded-full w-full shadow-md transition-colors"
             >
               Get Started
-              <ArrowRight size={14} className="stroke-[2.5]" />
+              <ArrowRight size={13} className="stroke-[2.5]" />
             </a>
           </div>
         )}
@@ -152,124 +147,97 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
           
           {/* Left Column Text details */}
-          <div className="lg:col-span-7 space-y-8 text-center lg:text-left">
+          <div className="lg:col-span-6 space-y-8 text-left">
             {/* Tag Badge */}
-            <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100/50 rounded-full px-3.5 py-1 text-[10px] font-bold text-indigo-600 tracking-wider uppercase animate-slide-up">
+            <div className="inline-flex items-center gap-2 bg-[#eef2ff] border border-indigo-100/50 rounded-full px-3.5 py-1 text-[10px] font-bold text-[#4f46e5] tracking-wider uppercase animate-slide-up">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#4f46e5]" />
               Runtime Secret Leak Prevention for Node.js
             </div>
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.1] animate-slide-up delay-100">
-              Stop Secrets <br className="hidden sm:inline" />
-              Before They Leave <br className="hidden sm:inline" />
-              <span className="text-indigo-600">
-                Your Process
+              Stop secrets <br />
+              before they <br />
+              <span className="text-[#4f46e5]">
+                leave your process.
               </span>
             </h1>
 
             {/* Paragraph description */}
-            <p className="text-sm sm:text-base text-slate-500 max-w-xl mx-auto lg:mx-0 leading-relaxed animate-slide-up delay-200">
-              envtrap is a zero-configuration runtime security agent that intercepts, blocks, and flags the accidental exfiltration of secrets across logs, networks, DNS and subprocesses.
+            <p className="text-sm sm:text-base text-slate-500 leading-relaxed max-w-lg animate-slide-up delay-200">
+              envtrap is a runtime security agent for Node.js that detects and blocks accidental or malicious exfiltration of secrets across logs, network, DNS, and subprocesses.
             </p>
 
-            {/* Badge row matching screenshot */}
-            <div className="flex flex-wrap justify-center lg:justify-start gap-3 text-2xs sm:text-xs font-bold text-slate-600 animate-slide-up delay-300">
-              <div className="flex items-center gap-1.5 bg-white border border-slate-100 px-3 py-1.5 rounded-full shadow-xs">
-                <Zap size={12} className="text-indigo-500 fill-indigo-500/15" />
-                <span>Zero Configuration</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white border border-slate-100 px-3 py-1.5 rounded-full shadow-xs">
-                <Lock size={12} className="text-indigo-500" />
-                <span>Runs Locally</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white border border-slate-100 px-3 py-1.5 rounded-full shadow-xs">
-                <Shield size={12} className="text-indigo-500" />
-                <span>Blocks in Real Time</span>
-              </div>
-            </div>
-
             {/* Hero CTAs */}
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 animate-slide-up delay-400">
+            <div className="flex flex-row items-center gap-4 animate-slide-up delay-300">
               <a
                 href="#installation"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm px-6 py-3.5 rounded-full shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all scale-100 hover:scale-[1.02]"
+                className="inline-flex items-center justify-center gap-1.5 bg-zinc-955 bg-zinc-900 hover:bg-zinc-950 text-white font-semibold text-sm px-6 py-3 rounded-full shadow-sm transition-all scale-100 hover:scale-[1.02]"
               >
-                Get Started Now
-                <ArrowRight size={16} className="stroke-[2.5]" />
+                Get Started
+                <ArrowRight size={14} className="stroke-[2.5]" />
               </a>
               <a
                 href="https://github.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-extrabold text-sm px-6 py-3.5 rounded-full shadow-xs transition-all"
+                className="inline-flex items-center justify-center gap-2 bg-white border border-slate-200/90 hover:bg-slate-50 text-slate-800 font-semibold text-sm px-6 py-3 rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.02)] transition-all"
               >
-                <svg viewBox="0 0 24 24" className="w-4.5 h-4.5 fill-current" xmlns="http://www.w3.org/2000/svg">
+                View on GitHub
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current text-slate-800" xmlns="http://www.w3.org/2000/svg">
                   <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.43.372.82 1.102.82 2.222v3.293c0 .319.22.694.825.576C20.565 21.795 24 17.3 24 12c0-6.63-5.37-12-12-12z" />
                 </svg>
-                View on GitHub
               </a>
             </div>
+
+            {/* Trusted By Section */}
+            <div className="pt-10 border-t border-slate-100 max-w-xl animate-slide-up delay-400">
+              <div className="flex items-center gap-4 mb-4.5">
+                <span className="text-[10px] font-extrabold text-slate-400 tracking-wider whitespace-nowrap uppercase">Trusted by engineering teams at</span>
+                <div className="w-full h-px bg-slate-100" />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-4 text-slate-400/80">
+                {/* Vercel */}
+                <div className="flex items-center gap-1.5 font-bold text-xs select-none">
+                  <span className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10.5px] border-b-current" />
+                  <span>Vercel</span>
+                </div>
+                {/* Netlify */}
+                <div className="flex items-center gap-1.5 font-bold text-xs select-none">
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 0L2.7 5.4v13.2L12 24l9.3-5.4V5.4L12 0zm5.4 12.6l-5.4 3.1V9.5l5.4 3.1zm-7.2-4.1l5.4-3.1v6.2l-5.4 3.1V8.5z" />
+                  </svg>
+                  <span>Netlify</span>
+                </div>
+                {/* Render */}
+                <div className="flex items-center gap-1.5 font-bold text-xs select-none">
+                  <span className="w-3.5 h-3.5 rounded-xs border border-current flex items-center justify-center font-black text-[7px] leading-none">R</span>
+                  <span>Render</span>
+                </div>
+                {/* Railway */}
+                <div className="flex items-center gap-1.5 font-bold text-xs select-none">
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M0 0h24v24H0V0zm2 2v20h20V2H2zm4 4h12v12H6V6z" />
+                  </svg>
+                  <span>Railway</span>
+                </div>
+                {/* Supabase */}
+                <div className="flex items-center gap-1.5 font-bold text-xs select-none">
+                  <svg viewBox="0 0 24 24" className="w-3 h-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M13.4 24l8.3-12.7H13L16.2 0 7.9 12.7h8.7L13.4 24z" />
+                  </svg>
+                  <span>Supabase</span>
+                </div>
+              </div>
+            </div>
+
           </div>
 
-          {/* Right Column Interactive Console */}
-          <div className="lg:col-span-5 w-full flex justify-center lg:justify-end animate-slide-up delay-500">
-            <TerminalFlow />
+          {/* Right Column Interactive Orbits Visualizer */}
+          <div className="lg:col-span-6 w-full flex justify-center lg:justify-end animate-slide-up delay-500">
+            <InteractiveOrbits />
           </div>
 
-        </div>
-      </section>
-
-      {/* 3. Trusted by Developers At Section */}
-      <section className="bg-white border-y border-slate-100/80 py-8">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <p className="text-xs font-semibold text-slate-400 mb-6">
-            Trusted by developers building secure systems
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 opacity-45 grayscale hover:grayscale-0 hover:opacity-85 transition-all duration-300">
-            {/* GitHub */}
-            <div className="flex items-center gap-1.5 text-slate-800">
-              <svg viewBox="0 0 24 24" className="w-4.5 h-4.5 fill-current" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.43.372.82 1.102.82 2.222v3.293c0 .319.22.694.825.576C20.565 21.795 24 17.3 24 12c0-6.63-5.37-12-12-12z" />
-              </svg>
-              <span className="tracking-tight text-xs font-bold">GitHub</span>
-            </div>
-
-            {/* Vercel */}
-            <div className="flex items-center gap-1.5 text-slate-800">
-              <span className="w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-b-[12.5px] border-b-current" />
-              <span className="tracking-tight text-xs font-bold">Vercel</span>
-            </div>
-
-            {/* Netlify */}
-            <div className="flex items-center gap-1.5 text-slate-800">
-              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-slate-800" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 0L2.7 5.4v13.2L12 24l9.3-5.4V5.4L12 0zm5.4 12.6l-5.4 3.1V9.5l5.4 3.1zm-7.2-4.1l5.4-3.1v6.2l-5.4 3.1V8.5z" />
-              </svg>
-              <span className="tracking-tight text-xs font-bold">Netlify</span>
-            </div>
-
-            {/* Render */}
-            <div className="flex items-center gap-1.5 text-slate-800">
-              <div className="w-3.5 h-3.5 rounded-xs border border-slate-800 flex items-center justify-center font-black text-[8px]">R</div>
-              <span className="tracking-tight text-xs font-bold">Render</span>
-            </div>
-
-            {/* Railway */}
-            <div className="flex items-center gap-1.5 text-slate-800">
-              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
-                <path d="M0 0h24v24H0V0zm2 2v20h20V2H2zm4 4h12v12H6V6z" />
-              </svg>
-              <span className="tracking-tight text-xs font-bold">Railway</span>
-            </div>
-
-            {/* Supabase */}
-            <div className="flex items-center gap-1.5 text-slate-800">
-              <svg viewBox="0 0 24 24" className="w-3.5 h-4 fill-slate-800" xmlns="http://www.w3.org/2000/svg">
-                <path d="M13.4 24l8.3-12.7H13L16.2 0 7.9 12.7h8.7L13.4 24z" />
-              </svg>
-              <span className="tracking-tight text-xs font-bold">Supabase</span>
-            </div>
-          </div>
         </div>
       </section>
 
