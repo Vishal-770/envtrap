@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Zap,
   Shield,
@@ -27,7 +27,6 @@ import {
   Terminal,
 } from "lucide-react";
 import { LogoBrand, LogoIcon } from "./components/Logo";
-import InteractiveOrbits from "./components/InteractiveOrbits";
 import Comparison from "./components/Comparison";
 import Architecture from "./components/Architecture";
 import TerminalFlow from "./components/TerminalFlow";
@@ -39,7 +38,7 @@ export default function Home() {
   const [copiedRun, setCopiedRun] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Interactive Bento Card 1: Package Manager Selector
+  // Package Manager selector
   const [pkgManager, setPkgManager] = useState<"npm" | "pnpm" | "yarn" | "bun">("npm");
   const pkgCommands = {
     npm: { install: "npm install -g envtrap", run: "envtrap run node app.js" },
@@ -48,7 +47,7 @@ export default function Home() {
     bun: { install: "bun add -g envtrap", run: "envtrap run node app.js" },
   };
 
-  // Interactive Bento Card 4: Redaction Sandbox Toggle
+  // Redaction sandbox console toggle
   const [redactSandbox, setRedactSandbox] = useState<"raw" | "sanitized">("sanitized");
 
   const copyToClipboard = (text: string, setCopiedState: (v: boolean) => void) => {
@@ -57,16 +56,36 @@ export default function Home() {
     setTimeout(() => setCopiedState(false), 2000);
   };
 
-  // GSAP Animations
+  // References for GSAP
+  const pinSectionRef = useRef<HTMLDivElement>(null);
+  const flowPathRef = useRef<SVGPathElement>(null);
+  const particleRef = useRef<SVGCircleElement>(null);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       gsap.registerPlugin(ScrollTrigger);
 
-      // 1. Hero Entrance Timeline
+      // --- 1. Scroll-linked Glow Wave (Draws down the page center) ---
+      gsap.fromTo(
+        ".glow-wave",
+        { height: "0%" },
+        {
+          height: "100%",
+          ease: "none",
+          scrollTrigger: {
+            trigger: "body",
+            start: "top top",
+            end: "bottom bottom",
+            scrub: true,
+          },
+        }
+      );
+
+      // --- 2. Hero Text Scramble / Resolve Entrance ---
       const heroTl = gsap.timeline({ defaults: { ease: "power3.out" } });
       
-      // Set initial hidden states to prevent flash
-      gsap.set([".hero-tag", ".hero-title", ".hero-desc", ".hero-ctas", ".hero-trusted", ".hero-orbits"], {
+      // Set initial states to avoid flashes
+      gsap.set([".hero-tag", ".hero-title", ".hero-desc", ".hero-ctas", ".hero-trusted", ".hero-visual"], {
         opacity: 0
       });
 
@@ -75,18 +94,89 @@ export default function Home() {
             .fromTo(".hero-desc", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6 }, "-=0.5")
             .fromTo(".hero-ctas", { y: 15, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5 }, "-=0.4")
             .fromTo(".hero-trusted", { opacity: 0 }, { opacity: 1, duration: 0.6 }, "-=0.3")
-            .fromTo(".hero-orbits", { scale: 0.95, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8 }, "-=0.6");
+            .fromTo(".hero-visual", { scale: 0.98, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8 }, "-=0.6");
 
-      // 2. Bento Grid Items Staggered Entrance
-      gsap.set(".bento-item", { y: 35, opacity: 0 });
+      // --- 3. Pinned Storytelling Section (Step-by-Step Egress Interception) ---
+      if (pinSectionRef.current && flowPathRef.current && particleRef.current) {
+        // Path details: total length for dash animation
+        const pathLength = flowPathRef.current.getTotalLength();
+        gsap.set(flowPathRef.current, {
+          strokeDasharray: pathLength,
+          strokeDashoffset: pathLength,
+        });
+
+        const storyTl = gsap.timeline({
+          scrollTrigger: {
+            trigger: pinSectionRef.current,
+            start: "top top",
+            end: "+=300%", // Scroll depth for pinning
+            pin: true,
+            scrub: true,
+            invalidateOnRefresh: true,
+          },
+        });
+
+        // Step 1: Secret Created (progress 0.0 -> 0.25)
+        storyTl.to(".story-text-1", { opacity: 1, y: 0, duration: 0.5 }, 0)
+               .to(".story-visual-code", { borderColor: "#4f46e5", boxShadow: "0 0 20px rgba(79,70,229,0.1)", duration: 0.5 }, 0)
+               .to(particleRef.current, { opacity: 1, scale: 1.5, duration: 0.3 }, 0.2);
+
+        // Step 2: Egress Attempted (progress 0.25 -> 0.5)
+        storyTl.to(".story-text-1", { opacity: 0.2, y: -10, duration: 0.5 }, 0.8)
+               .to(".story-text-2", { opacity: 1, y: 0, duration: 0.5 }, 0.8)
+               // Draw SVG path towards shield
+               .to(flowPathRef.current, { strokeDashoffset: pathLength * 0.5, duration: 0.8 }, 0.8)
+               // Animate particle along path (x, y translations calculated or hardcoded values matching path)
+               .to(particleRef.current, { x: 140, y: 0, duration: 0.8 }, 0.8);
+
+        // Step 3: envtrap Intercepts (progress 0.5 -> 0.75)
+        storyTl.to(".story-text-2", { opacity: 0.2, y: -10, duration: 0.5 }, 1.6)
+               .to(".story-text-3", { opacity: 1, y: 0, duration: 0.5 }, 1.6)
+               .to(".story-visual-shield", { scale: 1.15, borderColor: "#4f46e5", backgroundColor: "#eef2ff", duration: 0.5 }, 1.6)
+               .to(flowPathRef.current, { strokeDashoffset: pathLength * 0.42, duration: 0.4 }, 1.6)
+               .to(particleRef.current, { x: 195, y: 0, duration: 0.4 }, 1.6); // halt at shield
+
+        // Step 4: Blocked & Redacted (progress 0.75 -> 1.0)
+        storyTl.to(".story-text-3", { opacity: 0.2, y: -10, duration: 0.5 }, 2.4)
+               .to(".story-text-4", { opacity: 1, y: 0, duration: 0.5 }, 2.4)
+               .to(".story-visual-shield-icon", { color: "#ef4444", duration: 0.3 }, 2.4)
+               .to(".story-visual-barrier", { opacity: 1, scaleY: 1.2, duration: 0.4 }, 2.4)
+               .to(particleRef.current, { fill: "#ef4444", scale: 1, duration: 0.3 }, 2.4)
+               .to(".story-visual-terminal", { opacity: 1, y: 0, duration: 0.6 }, 2.5)
+               .to(".terminal-typing-line-1", { display: "block", duration: 0.1 }, 2.6)
+               .to(".terminal-typing-line-2", { display: "block", duration: 0.1 }, 2.9)
+               .to(".terminal-typing-line-3", { display: "block", duration: 0.1 }, 3.2);
+      }
+
+      // --- 4. Bento Grid Card Scroll Guided Activation ---
+      const cards = gsap.utils.toArray(".bento-card-trigger");
+      cards.forEach((card: any) => {
+        gsap.fromTo(
+          card,
+          { opacity: 0.45, borderColor: "rgba(9, 9, 11, 0.06)" },
+          {
+            opacity: 1,
+            borderColor: "rgba(99, 102, 241, 0.4)",
+            duration: 0.6,
+            scrollTrigger: {
+              trigger: card,
+              start: "top 70%",
+              end: "bottom 30%",
+              toggleActions: "play reverse play reverse",
+            },
+          }
+        );
+      });
+
+      // Bento entrance stagger on view
       gsap.fromTo(
-        ".bento-item",
-        { y: 35, opacity: 0 },
+        ".bento-item-anim",
+        { y: 30, opacity: 0 },
         {
           y: 0,
           opacity: 1,
           duration: 0.7,
-          stagger: 0.12,
+          stagger: 0.1,
           ease: "power2.out",
           scrollTrigger: {
             trigger: ".bento-grid-trigger",
@@ -95,60 +185,24 @@ export default function Home() {
         }
       );
 
-      // 3. Comparison Section Slide Up
-      gsap.set(".comparison-section-anim", { y: 30, opacity: 0 });
+      // --- 5. Step Cards Entrance Stagger ---
       gsap.fromTo(
-        ".comparison-section-anim",
-        { y: 30, opacity: 0 },
+        ".step-card-anim",
+        { y: 25, opacity: 0 },
         {
           y: 0,
           opacity: 1,
-          duration: 0.8,
+          duration: 0.6,
+          stagger: 0.1,
           ease: "power2.out",
           scrollTrigger: {
-            trigger: ".comparison-section-anim",
-            start: "top 85%",
-          },
-        }
-      );
-
-      // 4. Attack Surfaces Row Stagger
-      gsap.set(".attack-surface-row-anim", { x: -25, opacity: 0 });
-      gsap.fromTo(
-        ".attack-surface-row-anim",
-        { x: -25, opacity: 0 },
-        {
-          x: 0,
-          opacity: 1,
-          duration: 0.55,
-          stagger: 0.08,
-          ease: "power1.out",
-          scrollTrigger: {
-            trigger: ".attack-surfaces-trigger",
+            trigger: ".steps-section-trigger",
             start: "top 80%",
           },
         }
       );
 
-      // 5. Steps Sequence Card Stagger
-      gsap.set(".step-card-anim", { scale: 0.96, opacity: 0 });
-      gsap.fromTo(
-        ".step-card-anim",
-        { scale: 0.96, opacity: 0 },
-        {
-          scale: 1,
-          opacity: 1,
-          duration: 0.5,
-          stagger: 0.08,
-          ease: "power2.out",
-          scrollTrigger: {
-            trigger: ".steps-section-trigger",
-            start: "top 82%",
-          },
-        }
-      );
-
-      // Cleanup function to kill active triggers on component unmount
+      // Cleanup
       return () => {
         ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
       };
@@ -156,37 +210,36 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#030303] text-zinc-100 font-sans antialiased selection:bg-indigo-500/20 selection:text-indigo-200 relative">
-      {/* Decorative Radial glow accents */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[600px] glow-indigo pointer-events-none z-0" />
-      <div className="absolute top-[800px] right-0 w-[400px] h-[400px] glow-violet pointer-events-none z-0" />
-      <div className="absolute bottom-[400px] left-0 w-[500px] h-[500px] glow-emerald pointer-events-none z-0" />
+    <div className="min-h-screen bg-white text-zinc-950 font-sans antialiased selection:bg-indigo-150 selection:text-indigo-900 relative">
+      
+      {/* Scroll progress Glow Wave (Tracks scroll on left margin) */}
+      <div className="glow-wave left-4 md:left-8 top-0" />
 
       {/* Grid background mask overlay */}
       <div className="absolute top-0 left-0 w-full h-[800px] grid-bg pointer-events-none z-0" />
-      <div className="absolute inset-0 grid-bg-full pointer-events-none z-0 opacity-40" />
+      <div className="absolute inset-0 grid-bg-full pointer-events-none z-0 opacity-60" />
 
       {/* 1. Header / Navbar */}
-      <header className="sticky top-0 z-50 bg-[#030303]/60 backdrop-blur-xl border-b border-zinc-900/80 transition-all">
+      <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-zinc-200/50 transition-all">
         <div className="max-w-7xl mx-auto px-6 h-18 flex items-center justify-between">
           <a href="#" className="hover:opacity-95 transition-opacity flex items-center">
             <LogoBrand />
           </a>
 
           {/* Desktop Nav Links */}
-          <nav className="hidden md:flex items-center gap-8 text-xs font-bold text-zinc-400 uppercase tracking-widest">
-            <a href="#features" className="hover:text-indigo-400 transition-colors">Product</a>
-            <a href="#attack-surfaces" className="hover:text-indigo-400 transition-colors">Attack Surfaces</a>
-            <a href="#architecture" className="hover:text-indigo-400 transition-colors">Architecture</a>
-            <a href="#how-it-works" className="hover:text-indigo-400 transition-colors">How It Works</a>
-            <a href="#docs" className="hover:text-indigo-400 transition-colors">Docs</a>
+          <nav className="hidden md:flex items-center gap-8 text-xs font-bold text-zinc-500 uppercase tracking-widest">
+            <a href="#features" className="hover:text-indigo-600 transition-colors">Product</a>
+            <a href="#demo" className="hover:text-indigo-600 transition-colors">How It Works</a>
+            <a href="#attack-surfaces" className="hover:text-indigo-600 transition-colors">Attack Surfaces</a>
+            <a href="#architecture" className="hover:text-indigo-600 transition-colors">Architecture</a>
+            <a href="#docs" className="hover:text-indigo-600 transition-colors">Docs</a>
           </nav>
 
-          {/* CTA / Mobile Menu toggle */}
+          {/* CTA */}
           <div className="flex items-center gap-4">
             <a
               href="#installation"
-              className="hidden sm:inline-flex items-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-955 text-xs font-black px-5 py-2.5 rounded-full transition-all text-zinc-955 shadow-lg shadow-white/5"
+              className="hidden sm:inline-flex items-center gap-1.5 bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold px-5 py-2.5 rounded-full transition-all shadow-sm"
             >
               Get Started
               <ArrowRight size={13} className="stroke-[2.5]" />
@@ -194,7 +247,7 @@ export default function Home() {
             
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 md:hidden text-zinc-400 hover:text-zinc-100"
+              className="p-2 md:hidden text-zinc-500 hover:text-zinc-950"
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -204,46 +257,46 @@ export default function Home() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-b border-zinc-900 bg-[#030303] px-6 py-6 space-y-4 shadow-2xl">
+          <div className="md:hidden border-b border-zinc-200 bg-white px-6 py-6 space-y-4 shadow-lg">
             <a
               href="#features"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-bold text-zinc-400 hover:text-indigo-400"
+              className="block text-sm font-bold text-zinc-500 hover:text-indigo-600"
             >
               Product
             </a>
             <a
+              href="#demo"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-bold text-zinc-500 hover:text-indigo-600"
+            >
+              How It Works
+            </a>
+            <a
               href="#attack-surfaces"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-bold text-zinc-400 hover:text-indigo-400"
+              className="block text-sm font-bold text-zinc-500 hover:text-indigo-600"
             >
               Attack Surfaces
             </a>
             <a
               href="#architecture"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-bold text-zinc-400 hover:text-indigo-400"
+              className="block text-sm font-bold text-zinc-500 hover:text-indigo-600"
             >
               Architecture
             </a>
             <a
-              href="#how-it-works"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-bold text-zinc-400 hover:text-indigo-400"
-            >
-              How It Works
-            </a>
-            <a
               href="#docs"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-bold text-zinc-400 hover:text-indigo-400"
+              className="block text-sm font-bold text-zinc-500 hover:text-indigo-600"
             >
               Docs
             </a>
             <a
               href="#installation"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-sm font-bold py-3 rounded-full w-full shadow-md transition-colors"
+              className="flex items-center justify-center gap-1.5 bg-zinc-950 hover:bg-zinc-800 text-white text-sm font-bold py-3 rounded-full w-full shadow-md transition-colors"
             >
               Get Started
               <ArrowRight size={13} className="stroke-[2.5]" />
@@ -252,37 +305,37 @@ export default function Home() {
         )}
       </header>
 
-      {/* 2. Hero Section */}
+      {/* 2. Hero Section (Minimalist + Exploded View Visual) */}
       <section className="max-w-7xl mx-auto px-6 pt-20 pb-24 md:pt-28 md:pb-36 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
           
-          {/* Left Column Text details */}
+          {/* Left Column Text */}
           <div className="lg:col-span-6 space-y-8 text-left">
             {/* Tag Badge */}
-            <div className="hero-tag inline-flex items-center gap-2 bg-indigo-950/40 border border-indigo-900/35 rounded-full px-3.5 py-1.5 text-[10px] font-bold text-indigo-400 tracking-wider uppercase">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />
+            <div className="hero-tag inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-full px-3.5 py-1.5 text-[10px] font-bold text-indigo-650 tracking-wider uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" />
               Runtime Secret Leak Prevention for Node.js
             </div>
 
             {/* Headline */}
-            <h1 className="hero-title text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.08]">
+            <h1 className="hero-title text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-zinc-900 leading-[1.08]">
               Stop secrets <br />
               before they <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-indigo-600 to-indigo-700">
                 leave your process.
               </span>
             </h1>
 
             {/* Paragraph description */}
-            <p className="hero-desc text-sm sm:text-base text-zinc-400 leading-relaxed max-w-lg font-medium">
-              envtrap wraps Node.js runtimes to intercept and block accidental or malicious exfiltration of sensitive data across logs, HTTP/HTTPS channels, DNS tunneling, and child processes in real-time.
+            <p className="hero-desc text-sm sm:text-base text-zinc-600 leading-relaxed max-w-lg font-medium">
+              envtrap is a zero-configuration runtime security agent for Node.js that intercepts and blocks exfiltration of database credentials, api keys, and tokens at the execution boundary.
             </p>
 
             {/* Hero CTAs */}
             <div className="hero-ctas flex flex-row items-center gap-4">
               <a
                 href="#installation"
-                className="inline-flex items-center justify-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-950 font-black text-sm px-6 py-3 rounded-full shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-1.5 bg-zinc-950 hover:bg-zinc-800 text-white font-bold text-sm px-6 py-3 rounded-full shadow-md transition-all active:scale-[0.98]"
               >
                 Get Started
                 <ArrowRight size={14} className="stroke-[2.5]" />
@@ -291,48 +344,43 @@ export default function Home() {
                 href="https://github.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 bg-zinc-955 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 text-zinc-300 font-extrabold text-sm px-6 py-3 rounded-full shadow-md transition-all active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-2 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-bold text-sm px-6 py-3 rounded-full shadow-sm transition-all active:scale-[0.98]"
               >
                 View on GitHub
-                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current text-zinc-300" xmlns="http://www.w3.org/2000/svg">
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current text-zinc-600" xmlns="http://www.w3.org/2000/svg">
                   <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.43.372.82 1.102.82 2.222v3.293c0 .319.22.694.825.576C20.565 21.795 24 17.3 24 12c0-6.63-5.37-12-12-12z" />
                 </svg>
               </a>
             </div>
 
             {/* Trusted By Section */}
-            <div className="hero-trusted pt-10 border-t border-zinc-900/60 max-w-xl">
+            <div className="hero-trusted pt-10 border-t border-zinc-200/80 max-w-xl">
               <div className="flex items-center gap-4 mb-4.5">
-                <span className="text-[9px] font-extrabold text-zinc-500 tracking-widest whitespace-nowrap uppercase">Trusted by developer teams at</span>
-                <div className="w-full h-px bg-zinc-900/80" />
+                <span className="text-[9px] font-extrabold text-zinc-400 tracking-widest whitespace-nowrap uppercase">Trusted by developer teams at</span>
+                <div className="w-full h-px bg-zinc-200" />
               </div>
-              <div className="flex flex-wrap items-center gap-x-8 gap-y-4 text-zinc-500">
-                {/* Vercel */}
-                <div className="flex items-center gap-1.5 font-bold text-xs select-none hover:text-zinc-350 transition-colors duration-300">
-                  <span className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10.5px] border-b-current" />
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-4 text-zinc-400 font-bold text-xs select-none">
+                <div className="flex items-center gap-1.5 hover:text-zinc-600 transition-colors">
+                  <span className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10.5px] border-b-zinc-400" />
                   <span>Vercel</span>
                 </div>
-                {/* Netlify */}
-                <div className="flex items-center gap-1.5 font-bold text-xs select-none hover:text-zinc-350 transition-colors duration-300">
+                <div className="flex items-center gap-1.5 hover:text-zinc-600 transition-colors">
                   <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 0L2.7 5.4v13.2L12 24l9.3-5.4V5.4L12 0zm5.4 12.6l-5.4 3.1V9.5l5.4 3.1zm-7.2-4.1l5.4-3.1v6.2l-5.4 3.1V8.5z" />
                   </svg>
                   <span>Netlify</span>
                 </div>
-                {/* Render */}
-                <div className="flex items-center gap-1.5 font-bold text-xs select-none hover:text-zinc-350 transition-colors duration-300">
+                <div className="flex items-center gap-1.5 hover:text-zinc-600 transition-colors">
                   <span className="w-3.5 h-3.5 rounded-xs border border-current flex items-center justify-center font-black text-[7px] leading-none">R</span>
                   <span>Render</span>
                 </div>
-                {/* Railway */}
-                <div className="flex items-center gap-1.5 font-bold text-xs select-none hover:text-zinc-350 transition-colors duration-300">
+                <div className="flex items-center gap-1.5 hover:text-zinc-600 transition-colors">
                   <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
                     <path d="M0 0h24v24H0V0zm2 2v20h20V2H2zm4 4h12v12H6V6z" />
                   </svg>
                   <span>Railway</span>
                 </div>
-                {/* Supabase */}
-                <div className="flex items-center gap-1.5 font-bold text-xs select-none hover:text-zinc-350 transition-colors duration-300">
+                <div className="flex items-center gap-1.5 hover:text-zinc-600 transition-colors">
                   <svg viewBox="0 0 24 24" className="w-3 h-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
                     <path d="M13.4 24l8.3-12.7H13L16.2 0 7.9 12.7h8.7L13.4 24z" />
                   </svg>
@@ -343,46 +391,238 @@ export default function Home() {
 
           </div>
 
-          {/* Right Column Interactive Orbits Visualizer */}
-          <div className="hero-orbits lg:col-span-6 w-full flex justify-center lg:justify-end">
-            <InteractiveOrbits />
+          {/* Right Column: Dynamic Exploded View Visual */}
+          <div className="hero-visual lg:col-span-6 w-full flex justify-center lg:justify-end">
+            <div className="w-full max-w-[480px] bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center relative aspect-square overflow-hidden bg-radial from-indigo-50/10 to-white">
+              
+              {/* Central envtrap hub */}
+              <div className="w-20 h-20 rounded-2xl bg-white border-2 border-indigo-500 shadow-md flex items-center justify-center relative z-25 hover:scale-105 transition-transform duration-300">
+                <img
+                  src="/logo.png"
+                  alt="envtrap logo"
+                  width={40}
+                  height={40}
+                  className="object-contain"
+                />
+                <div className="absolute -inset-2 bg-indigo-500/5 rounded-2xl blur-md -z-10 animate-pulse" />
+              </div>
+
+              {/* Exploded Channel badges positioned around the hub */}
+              <div className="absolute top-[12%] left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
+                <div className="px-3.5 py-2 rounded-xl bg-white border border-zinc-200 shadow-sm flex items-center gap-2 font-mono text-[10px] font-bold text-zinc-700">
+                  <Terminal size={12} className="text-indigo-650" />
+                  <span>stdout / stderr</span>
+                </div>
+                <div className="h-10 w-0.5 border-l border-dashed border-zinc-300" />
+              </div>
+
+              <div className="absolute bottom-[12%] left-1/2 -translate-x-1/2 flex flex-col-reverse items-center gap-1">
+                <div className="px-3.5 py-2 rounded-xl bg-white border border-zinc-200 shadow-sm flex items-center gap-2 font-mono text-[10px] font-bold text-zinc-700">
+                  <Lock size={12} className="text-indigo-650" />
+                  <span>subprocesses</span>
+                </div>
+                <div className="h-10 w-0.5 border-l border-dashed border-zinc-300" />
+              </div>
+
+              <div className="absolute left-[8%] top-[45%] flex items-center gap-1.5">
+                <div className="px-3.5 py-2 rounded-xl bg-white border border-zinc-200 shadow-sm flex items-center gap-2 font-mono text-[10px] font-bold text-zinc-700">
+                  <Globe size={12} className="text-indigo-650" />
+                  <span>HTTPS proxy</span>
+                </div>
+                <div className="w-10 h-0.5 border-b border-dashed border-zinc-300" />
+              </div>
+
+              <div className="absolute right-[8%] top-[45%] flex flex-row-reverse items-center gap-1.5">
+                <div className="px-3.5 py-2 rounded-xl bg-white border border-zinc-200 shadow-sm flex items-center gap-2 font-mono text-[10px] font-bold text-zinc-700">
+                  <Activity size={12} className="text-indigo-650" />
+                  <span>DNS Tunneling</span>
+                </div>
+                <div className="w-10 h-0.5 border-b border-dashed border-zinc-300" />
+              </div>
+
+              {/* Exploded visual accent rings */}
+              <div className="absolute w-[60%] h-[60%] rounded-full border border-dashed border-zinc-200 pointer-events-none" />
+              <div className="absolute w-[80%] h-[80%] rounded-full border border-dashed border-zinc-150 pointer-events-none" />
+            </div>
           </div>
 
         </div>
       </section>
 
-      {/* 3. Premium Bento Grid Features */}
-      <section id="features" className="bento-grid-trigger max-w-7xl mx-auto px-6 py-20 relative z-10">
-        <div className="space-y-4 text-center mb-16">
-          <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Core Capabilities</h2>
-          <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Engineered for absolute security.</p>
+      {/* 3. Pinned Storytelling Section (Step-by-step Egress Interception) */}
+      <section id="demo" ref={pinSectionRef} className="w-full bg-zinc-50/50 border-y border-zinc-200/80 relative z-20">
+        <div className="max-w-7xl mx-auto px-6 h-screen flex flex-col justify-center py-20 relative">
+          
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center h-full">
+            
+            {/* Left Column: Story Narratives */}
+            <div className="lg:col-span-5 space-y-16 relative">
+              <div className="space-y-4">
+                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Interactive Walkthrough</span>
+                <h2 className="text-3xl font-extrabold tracking-tight text-zinc-900">How envtrap Intercepts Threats</h2>
+                <p className="text-xs text-zinc-500 font-semibold leading-relaxed">Scroll down to observe the exfiltration blocking lifecycle step-by-step.</p>
+              </div>
+
+              {/* Story text layers */}
+              <div className="space-y-12">
+                {/* Step 1 */}
+                <div className="story-text-1 transform translate-y-4 space-y-3 opacity-100">
+                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-indigo-600">
+                    <span>STEP 01</span>
+                    <span className="h-px bg-indigo-100 w-8" />
+                  </div>
+                  <h4 className="text-lg font-bold text-zinc-900">Secret Loaded in Memory</h4>
+                  <p className="text-xs text-zinc-500 leading-relaxed max-w-sm">
+                    A malicious npm package, compromised dependency, or debug statement attempts to read configuration credentials like `STRIPE_SECRET_KEY` from process memory.
+                  </p>
+                </div>
+
+                {/* Step 2 */}
+                <div className="story-text-2 transform translate-y-4 space-y-3 opacity-20">
+                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-indigo-600">
+                    <span>STEP 02</span>
+                    <span className="h-px bg-indigo-100 w-8" />
+                  </div>
+                  <h4 className="text-lg font-bold text-zinc-900">Egress Attempt Triggered</h4>
+                  <p className="text-xs text-zinc-500 leading-relaxed max-w-sm">
+                    The compromised library invokes an outbound connection, sending the private keys to a remote collection server (e.g. `api.attacker.com`) via HTTP or DNS names.
+                  </p>
+                </div>
+
+                {/* Step 3 */}
+                <div className="story-text-3 transform translate-y-4 space-y-3 opacity-20">
+                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-indigo-600">
+                    <span>STEP 03</span>
+                    <span className="h-px bg-indigo-100 w-8" />
+                  </div>
+                  <h4 className="text-lg font-bold text-zinc-900">envtrap Boundary Interception</h4>
+                  <p className="text-xs text-zinc-500 leading-relaxed max-w-sm">
+                    Before the network packet is sent, envtrap's runtime interceptor captures the raw buffers. The payload is checked against known secret signatures and Shannon entropy.
+                  </p>
+                </div>
+
+                {/* Step 4 */}
+                <div className="story-text-4 transform translate-y-4 space-y-3 opacity-20">
+                  <div className="flex items-center gap-2 font-mono text-xs font-bold text-indigo-600">
+                    <span>STEP 04</span>
+                    <span className="h-px bg-indigo-100 w-8" />
+                  </div>
+                  <h4 className="text-lg font-bold text-zinc-900">Blocked & Sanitized Report</h4>
+                  <p className="text-xs text-zinc-500 leading-relaxed max-w-sm">
+                    The connection is terminated instantly. A cryptographic hash of the secret is generated for auditing, preventing any raw keys from leaking into log outputs.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Visual Pipeline (SVG Path Drawing) */}
+            <div className="lg:col-span-7 flex flex-col items-center justify-center relative h-[70vh]">
+              <div className="w-full max-w-[500px] aspect-video border border-zinc-200/80 rounded-2xl bg-white shadow-sm p-6 flex items-center justify-between relative overflow-hidden">
+                
+                {/* SVG path connecting Code to Shield to Destination */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 300">
+                  {/* Drawing Path */}
+                  <path
+                    ref={flowPathRef}
+                    id="flow-path"
+                    d="M 60 150 Q 150 100, 250 150 T 440 150"
+                    fill="none"
+                    stroke="#4f46e5"
+                    strokeWidth="2"
+                  />
+                  
+                  {/* Flow Particle */}
+                  <circle
+                    ref={particleRef}
+                    cx="60"
+                    cy="150"
+                    r="4"
+                    fill="#4f46e5"
+                    className="opacity-0"
+                  />
+                </svg>
+
+                {/* Source Node */}
+                <div className="story-visual-code w-14 h-14 rounded-2xl bg-zinc-50 border border-zinc-200 flex flex-col items-center justify-center relative z-10 shadow-xs">
+                  <Terminal size={20} className="text-zinc-650 text-zinc-500" />
+                  <span className="text-[8px] font-bold font-mono text-zinc-400 mt-1">App</span>
+                </div>
+
+                {/* Interceptor Node */}
+                <div className="story-visual-shield w-16 h-16 rounded-2xl bg-white border border-zinc-200 flex flex-col items-center justify-center relative z-10 shadow-sm transition-all duration-300">
+                  <Shield size={22} className="story-visual-shield-icon text-zinc-400" />
+                  <span className="text-[8px] font-bold font-mono text-zinc-400 mt-1">envtrap</span>
+                  
+                  {/* Glowing red firewall barrier (starts hidden) */}
+                  <div className="story-visual-barrier absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-16 bg-red-500 rounded-full opacity-0 scale-y-50 pointer-events-none shadow-[0_0_15px_rgba(239,68,68,0.8)]" />
+                </div>
+
+                {/* Destination Node */}
+                <div className="story-visual-dest w-14 h-14 rounded-2xl bg-zinc-50 border border-zinc-200 flex flex-col items-center justify-center relative z-10 shadow-xs">
+                  <Globe size={20} className="text-zinc-650 text-zinc-500" />
+                  <span className="text-[8px] font-bold font-mono text-zinc-400 mt-1">External</span>
+                </div>
+              </div>
+
+              {/* Typewriter Terminal overlay (appears on step 4) */}
+              <div className="story-visual-terminal absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-[420px] bg-zinc-950 border border-zinc-850 rounded-xl shadow-2xl p-4 font-mono text-[10px] text-zinc-400 opacity-0 translate-y-4 transition-all duration-500 z-30">
+                <div className="flex items-center gap-1.5 pb-2.5 border-b border-zinc-900 mb-2.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-500/80" />
+                  <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="terminal-typing-line-1 hidden">
+                    <span className="text-indigo-400">$</span> envtrap run node app.js
+                  </div>
+                  <div className="terminal-typing-line-2 hidden text-rose-400">
+                    [envtrap] Outbound HTTP Exfiltration Blocked: api.attacker.com
+                  </div>
+                  <div className="terminal-typing-line-3 hidden text-emerald-400">
+                    [envtrap] SHA256 REDACTED: [REDACTED: SHA256:d8a57e31]
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      {/* 4. Premium Bento Grid Features (Active Glow Scroll) */}
+      <section id="features" className="bento-grid-trigger max-w-7xl mx-auto px-6 py-32 relative z-10">
+        <div className="space-y-4 text-center mb-20">
+          <h2 className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Core Capabilities</h2>
+          <p className="text-3xl sm:text-4xl font-black text-zinc-900 tracking-tight">Engineered for absolute security.</p>
         </div>
 
         {/* Bento Grid */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
           
-          {/* Card 1: Zero Configuration (Col Span 3) */}
-          <div className="bento-item bento-card md:col-span-3 flex flex-col justify-between group">
+          {/* Card 1: Zero Configuration */}
+          <div className="bento-card-trigger bento-card md:col-span-3 flex flex-col justify-between group bento-item-anim">
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 transition-transform group-hover:scale-105">
                 <Zap size={18} />
               </div>
-              <h3 className="text-lg font-bold text-white tracking-wide">Zero Configuration</h3>
-              <p className="text-zinc-400 text-xs leading-relaxed max-w-sm">
+              <h3 className="text-lg font-bold text-zinc-900 tracking-wide">Zero Configuration</h3>
+              <p className="text-zinc-500 text-xs leading-relaxed max-w-sm font-semibold">
                 No code edits or custom library setup required. Wrap your startup command and begin runtime interception immediately.
               </p>
             </div>
 
             {/* Interactive Package selector */}
-            <div className="mt-8 border border-zinc-900 rounded-xl overflow-hidden bg-zinc-950/60 font-mono text-[11px]">
+            <div className="mt-8 border border-zinc-200 rounded-xl overflow-hidden bg-zinc-50/50 font-mono text-[11px]">
               {/* Tab Selector */}
-              <div className="flex border-b border-zinc-900 bg-zinc-950 px-2 py-1">
+              <div className="flex border-b border-zinc-200 bg-zinc-50 px-2 py-1">
                 {(["npm", "pnpm", "yarn", "bun"] as const).map((pm) => (
                   <button
                     key={pm}
                     onClick={() => setPkgManager(pm)}
                     className={`px-3.5 py-1.5 rounded-md font-bold tracking-wide transition-all ${
-                      pkgManager === pm ? "bg-zinc-900 text-indigo-400 border border-zinc-850" : "text-zinc-500 hover:text-zinc-300"
+                      pkgManager === pm ? "bg-white text-indigo-600 border border-zinc-200 shadow-xs" : "text-zinc-400 hover:text-zinc-650"
                     }`}
                   >
                     {pm}
@@ -391,18 +631,18 @@ export default function Home() {
               </div>
 
               {/* Console commands display */}
-              <div className="p-4 space-y-2.5 text-zinc-350 select-all relative group/copy">
+              <div className="p-4 space-y-2.5 text-zinc-700 select-all relative group/copy">
                 <div>
-                  <span className="text-indigo-500/60 font-bold">$ </span>
+                  <span className="text-indigo-400/80 font-bold">$ </span>
                   {pkgCommands[pkgManager].install}
                 </div>
                 <div>
-                  <span className="text-indigo-500/60 font-bold">$ </span>
+                  <span className="text-indigo-400/80 font-bold">$ </span>
                   {pkgCommands[pkgManager].run}
                 </div>
                 <button
                   onClick={() => copyToClipboard(`${pkgCommands[pkgManager].install} && ${pkgCommands[pkgManager].run}`, setCopiedInstall)}
-                  className="absolute right-3.5 top-3.5 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover/copy:opacity-100 transition-opacity p-1.5 bg-zinc-900 border border-zinc-800 rounded-md"
+                  className="absolute right-3.5 top-3.5 text-zinc-400 hover:text-zinc-600 opacity-0 group-hover/copy:opacity-100 transition-opacity p-1.5 bg-white border border-zinc-200 rounded-md"
                   aria-label="Copy commands"
                 >
                   {copiedInstall ? <Check size={12} className="text-emerald-500 stroke-[3]" /> : <Copy size={12} />}
@@ -411,50 +651,50 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Card 2: In-Memory CA (Col Span 3) */}
-          <div className="bento-item bento-card md:col-span-3 flex flex-col justify-between group">
+          {/* Card 2: In-Memory CA */}
+          <div className="bento-card-trigger bento-card md:col-span-3 flex flex-col justify-between group bento-item-anim">
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 transition-transform group-hover:scale-105">
                 <Shield size={18} />
               </div>
-              <h3 className="text-lg font-bold text-white tracking-wide">In-Memory Root CA</h3>
-              <p className="text-zinc-400 text-xs leading-relaxed max-w-sm">
+              <h3 className="text-lg font-bold text-zinc-900 tracking-wide">In-Memory Root CA</h3>
+              <p className="text-zinc-500 text-xs leading-relaxed max-w-sm font-semibold">
                 Generates a unique 2048-bit Root CA in memory at startup. No private key is ever written to disk, ensuring TLS interception remains isolated.
               </p>
             </div>
 
             {/* Certificate visual diagram */}
-            <div className="mt-8 border border-zinc-900 rounded-xl bg-zinc-950/40 p-4 flex items-center justify-between font-mono text-[10px] text-zinc-400">
+            <div className="mt-8 border border-zinc-200 rounded-xl bg-zinc-50/50 p-4 flex items-center justify-between font-mono text-[10px] text-zinc-500">
               <div className="flex flex-col gap-1 items-start">
-                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Key Lifecycle</span>
-                <span className="text-indigo-400 font-bold">1. Generate RSA key in RAM</span>
+                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Key Lifecycle</span>
+                <span className="text-indigo-600 font-bold">1. Generate RSA key in RAM</span>
                 <span className="text-zinc-500">2. Save public cert only</span>
                 <span className="text-rose-500 font-bold">3. Delete CA from memory on exit</span>
               </div>
-              <div className="border border-zinc-855 border-zinc-850 bg-zinc-955 bg-zinc-950 rounded-xl p-3 flex flex-col items-center gap-1.5 shrink-0 shadow-lg">
-                <ShieldCheck size={20} className="text-indigo-400 shadow-glow" />
-                <span className="font-bold text-[9px] text-zinc-300">envtrap CA</span>
-                <span className="px-1.5 py-0.5 rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-900/30 text-[8px] font-extrabold uppercase">Verified</span>
+              <div className="border border-zinc-200 bg-white rounded-xl p-3 flex flex-col items-center gap-1.5 shrink-0 shadow-sm">
+                <ShieldCheck size={20} className="text-indigo-500" />
+                <span className="font-bold text-[9px] text-zinc-800">envtrap CA</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[8px] font-extrabold uppercase">Verified</span>
               </div>
             </div>
           </div>
 
-          {/* Card 3: Real-Time Interception (Col Span 3) */}
-          <div className="bento-item bento-card md:col-span-3 flex flex-col justify-between group">
+          {/* Card 3: Real-Time Interception */}
+          <div className="bento-card-trigger bento-card md:col-span-3 flex flex-col justify-between group bento-item-anim">
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 transition-transform group-hover:scale-105">
                 <Eye size={18} />
               </div>
-              <h3 className="text-lg font-bold text-white tracking-wide">Real-Time Protection</h3>
-              <p className="text-zinc-400 text-xs leading-relaxed max-w-sm">
+              <h3 className="text-lg font-bold text-zinc-900 tracking-wide">Real-Time Protection</h3>
+              <p className="text-zinc-500 text-xs leading-relaxed max-w-sm font-semibold">
                 Intercepts exfiltration attempts at the execution boundary rather than statically scanning directories, catching keys generated dynamic-runtime.
               </p>
             </div>
 
             {/* Visualizer showing standard app vs envtrap */}
             <div className="mt-8 grid grid-cols-2 gap-4 font-mono text-[9px]">
-              <div className="border border-zinc-900 rounded-xl p-3 bg-zinc-950/20 flex flex-col justify-between h-24">
-                <div className="flex justify-between items-center text-rose-400 font-bold">
+              <div className="border border-zinc-200 rounded-xl p-3 bg-zinc-50/50 flex flex-col justify-between h-24">
+                <div className="flex justify-between items-center text-rose-500 font-bold">
                   <span>UNPROTECTED</span>
                   <X size={12} />
                 </div>
@@ -465,41 +705,41 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="border border-indigo-955 border-indigo-950/60 rounded-xl p-3 bg-indigo-950/10 flex flex-col justify-between h-24 shadow-[0_0_15px_rgba(99,102,241,0.05)]">
-                <div className="flex justify-between items-center text-indigo-400 font-bold">
+              <div className="border border-indigo-100 rounded-xl p-3 bg-indigo-50/20 flex flex-col justify-between h-24 shadow-sm">
+                <div className="flex justify-between items-center text-indigo-600 font-bold">
                   <span>envtrap SHIELD</span>
                   <ShieldCheck size={12} />
                 </div>
-                <div className="text-zinc-400 leading-tight">
+                <div className="text-zinc-700 leading-tight">
                   Outbound Request <br />
                   → Intercepted Proxy <br />
-                  <span className="text-indigo-400 font-bold">Exfiltration Terminated</span>
+                  <span className="text-indigo-600 font-bold">Exfiltration Terminated</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Card 4: AI-Safe Redacted Reporting (Col Span 3) */}
-          <div className="bento-item bento-card md:col-span-3 flex flex-col justify-between group">
+          {/* Card 4: AI-Safe Redacted Reporting */}
+          <div className="bento-card-trigger bento-card md:col-span-3 flex flex-col justify-between group bento-item-anim">
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 transition-transform group-hover:scale-105">
                 <Bot size={18} />
               </div>
-              <h3 className="text-lg font-bold text-white tracking-wide">AI-Safe Redacted Reporting</h3>
-              <p className="text-zinc-400 text-xs leading-relaxed max-w-sm">
+              <h3 className="text-lg font-bold text-zinc-900 tracking-wide">AI-Safe Redacted Reporting</h3>
+              <p className="text-zinc-500 text-xs leading-relaxed max-w-sm font-semibold">
                 Only cryptographic non-reversible hashes are ever written to stdout/reports. Paste outputs safely into LLMs without leaks.
               </p>
             </div>
 
             {/* Interactive Raw vs Redacted Output Console */}
-            <div className="mt-8 border border-zinc-900 rounded-xl overflow-hidden bg-zinc-950/60 font-mono text-[10px]">
-              <div className="flex border-b border-zinc-900 bg-zinc-950 px-2 py-1 justify-between items-center">
-                <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest pl-2">Console output preview</span>
+            <div className="mt-8 border border-zinc-200 rounded-xl overflow-hidden bg-zinc-550/60 bg-zinc-50/50 font-mono text-[10px]">
+              <div className="flex border-b border-zinc-200 bg-zinc-50 px-2 py-1 justify-between items-center">
+                <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest pl-2">Console output preview</span>
                 <div className="flex gap-1.5">
                   <button
                     onClick={() => setRedactSandbox("raw")}
                     className={`px-2.5 py-1 rounded-md transition-all font-bold ${
-                      redactSandbox === "raw" ? "bg-rose-950/60 text-rose-450 border border-rose-900/30" : "text-zinc-500 hover:text-zinc-300"
+                      redactSandbox === "raw" ? "bg-rose-50 text-rose-600 border border-rose-100" : "text-zinc-400 hover:text-zinc-650"
                     }`}
                   >
                     Raw Output
@@ -507,7 +747,7 @@ export default function Home() {
                   <button
                     onClick={() => setRedactSandbox("sanitized")}
                     className={`px-2.5 py-1 rounded-md transition-all font-bold ${
-                      redactSandbox === "sanitized" ? "bg-emerald-950/60 text-emerald-400 border border-emerald-900/30" : "text-zinc-500 hover:text-zinc-300"
+                      redactSandbox === "sanitized" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "text-zinc-400 hover:text-zinc-650"
                     }`}
                   >
                     envtrap Sanitized
@@ -515,16 +755,16 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="p-4 space-y-1.5 text-zinc-300 h-24 flex flex-col justify-center">
+              <div className="p-4 space-y-1.5 text-zinc-800 h-24 flex flex-col justify-center">
                 {redactSandbox === "raw" ? (
-                  <div className="text-rose-450 leading-relaxed text-zinc-400">
-                    <div>console.log("Configuration loaded:", <span className="text-rose-400 font-bold">sk_live_51NzkSDFG889...</span>)</div>
-                    <div className="text-zinc-650 font-bold mt-1 text-[8px]">⚠️ DANGER: PRIVATE KEY VISIBLE IN CLEAR TEXT</div>
+                  <div className="text-rose-600 leading-relaxed">
+                    <div>console.log("Configuration loaded:", <span className="text-rose-500 font-bold">sk_live_51NzkSDFG889...</span>)</div>
+                    <div className="text-zinc-400 font-bold mt-1 text-[8px] uppercase tracking-wider">⚠️ DANGER: PRIVATE KEY VISIBLE IN CLEAR TEXT</div>
                   </div>
                 ) : (
-                  <div className="text-emerald-455 text-zinc-300 leading-relaxed">
-                    <div>console.log("Configuration loaded:", <span className="text-emerald-450 font-bold">[REDACTED: SHA256:f7b822da]</span>)</div>
-                    <div className="text-indigo-400 font-bold mt-1 text-[8px] flex items-center gap-1">
+                  <div className="text-emerald-700 leading-relaxed">
+                    <div>console.log("Configuration loaded:", <span className="text-emerald-600 font-bold">[REDACTED: SHA256:f7b822da]</span>)</div>
+                    <div className="text-indigo-600 font-bold mt-1 text-[8px] flex items-center gap-1">
                       <ShieldCheck size={11} className="stroke-[2.5]" /> SECURE FOR AI CODE AGENTS & LOG AGGREGATORS
                     </div>
                   </div>
@@ -533,40 +773,40 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Card 5: 100% Local Execution (Col Span 6) */}
-          <div className="bento-item bento-card md:col-span-6 flex flex-col md:flex-row items-center justify-between gap-8 group">
+          {/* Card 5: 100% Local Execution */}
+          <div className="bento-card-trigger bento-card md:col-span-6 flex flex-col md:flex-row items-center justify-between gap-8 group bento-item-anim">
             <div className="space-y-3 md:max-w-md">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 transition-transform group-hover:scale-105">
                 <Lock size={18} />
               </div>
-              <h3 className="text-lg font-bold text-white tracking-wide">100% Local Execution</h3>
-              <p className="text-zinc-400 text-xs leading-relaxed">
+              <h3 className="text-lg font-bold text-zinc-900 tracking-wide">100% Local Execution</h3>
+              <p className="text-zinc-500 text-xs leading-relaxed font-semibold">
                 Zero telemetry, zero external network requests to security endpoints, and zero data leaving your machine. All scanning logic, certificate authority lifecycle, and blocking behavior execute completely offline.
               </p>
-              <div className="pt-2 flex items-center gap-4 text-[10px] font-extrabold uppercase tracking-wider text-zinc-500">
-                <span className="flex items-center gap-1.5"><ShieldCheck size={13} className="text-emerald-400" /> Offline Audit</span>
-                <span className="flex items-center gap-1.5"><ShieldCheck size={13} className="text-emerald-400" /> Zero Telemetry</span>
+              <div className="pt-2 flex items-center gap-4 text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">
+                <span className="flex items-center gap-1.5"><ShieldCheck size={13} className="text-emerald-500" /> Offline Audit</span>
+                <span className="flex items-center gap-1.5"><ShieldCheck size={13} className="text-emerald-500" /> Zero Telemetry</span>
               </div>
             </div>
 
             {/* Visual indicator representation */}
-            <div className="w-full md:w-64 border border-zinc-900 rounded-xl bg-zinc-950/30 p-4 font-mono text-[9px] space-y-3 shadow-inner">
+            <div className="w-full md:w-64 border border-zinc-200 rounded-xl bg-zinc-50/50 p-4 font-mono text-[9px] space-y-3 shadow-sm">
               <div className="flex justify-between items-center">
-                <span className="text-zinc-500 font-bold uppercase tracking-wider">Telemetry Probe Check</span>
-                <span className="text-indigo-400 font-bold">127.0.0.1 ONLY</span>
+                <span className="text-zinc-400 font-bold uppercase tracking-wider">Telemetry Probe Check</span>
+                <span className="text-indigo-600 font-bold">127.0.0.1 ONLY</span>
               </div>
-              <div className="space-y-2 border-t border-zinc-900 pt-2 text-zinc-400">
+              <div className="space-y-2 border-t border-zinc-200 pt-2 text-zinc-500">
                 <div className="flex justify-between">
                   <span>Outbound Telemetry Log</span>
-                  <span className="text-rose-500 font-bold">DISABLED</span>
+                  <span className="text-rose-500 font-bold font-extrabold">DISABLED</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Data Reporting Servers</span>
-                  <span className="text-zinc-650 font-semibold">NOT DEFINED</span>
+                  <span className="text-zinc-400 font-semibold">NOT DEFINED</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Offline Air-Gapped Mode</span>
-                  <span className="text-emerald-400 font-bold">ACTIVE</span>
+                  <span className="text-emerald-600 font-bold font-extrabold">ACTIVE</span>
                 </div>
               </div>
             </div>
@@ -575,23 +815,23 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 4. Live CLI exfiltration blocker showcase (Interactive Terminal Flow) */}
+      {/* 5. Live CLI exfiltration blocker showcase (Interactive Terminal Flow) */}
       <section className="max-w-7xl mx-auto px-6 py-10 relative z-10">
         <div className="space-y-4 text-center mb-12">
-          <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Real-time Sandbox</h2>
-          <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Watch the leak prevention pipeline in action.</p>
+          <h2 className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Real-time Sandbox</h2>
+          <p className="text-3xl sm:text-4xl font-black text-zinc-900 tracking-tight">Watch the leak prevention pipeline in action.</p>
         </div>
         <div className="w-full max-w-4xl mx-auto">
           <TerminalFlow />
         </div>
       </section>
 
-      {/* 5. Double Panel (Why Existing Tools Fail & Five Runtime Attack Surfaces) */}
+      {/* 6. Double Panel (Why Existing Tools Fail & Five Runtime Attack Surfaces) */}
       <section id="attack-surfaces" className="attack-surfaces-trigger max-w-7xl mx-auto px-6 py-20 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-stretch">
           {/* Left Panel: Comparison */}
           <div className="comparison-section-anim space-y-6 flex flex-col">
-            <h3 className="text-2xl font-extrabold tracking-tight text-white pl-2">
+            <h3 className="text-2xl font-black tracking-tight text-zinc-900 pl-2">
               Why Static Tools Fail
             </h3>
             <div className="flex-1 flex">
@@ -601,10 +841,10 @@ export default function Home() {
 
           {/* Right Panel: Five Runtime Attack Surfaces */}
           <div className="space-y-6 flex flex-col">
-            <h3 className="text-2xl font-extrabold tracking-tight text-white pl-2">
+            <h3 className="text-2xl font-black tracking-tight text-zinc-900 pl-2">
               Five Runtime Attack Surfaces
             </h3>
-            <div className="flex-1 bg-zinc-955 bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 md:p-8 shadow-2xl space-y-4 flex flex-col justify-between backdrop-blur-md">
+            <div className="flex-1 bg-white border border-zinc-200/80 rounded-2xl p-6 md:p-8 shadow-sm space-y-4 flex flex-col justify-between backdrop-blur-md">
               <AttackSurfaceRow
                 num="01"
                 title="stdout / stderr streams"
@@ -645,20 +885,20 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 6. Deep Runtime Protection Architecture */}
+      {/* 7. Deep Runtime Protection Architecture */}
       <section id="architecture" className="max-w-7xl mx-auto px-6 py-20 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-center mb-8">
           <div className="lg:col-span-1 space-y-6 text-center lg:text-left">
-            <h3 className="text-3xl font-extrabold tracking-tight text-white">
+            <h3 className="text-3xl font-black tracking-tight text-zinc-900">
               Deep Runtime Protection Architecture
             </h3>
-            <p className="text-zinc-400 leading-relaxed text-sm md:text-base font-medium">
+            <p className="text-zinc-500 leading-relaxed text-sm md:text-base font-semibold">
               envtrap operates at the boundary of your Node.js runtime to intercept exfiltration channels, perform entropy analysis, and drop exfiltrations without overhead.
             </p>
             <div className="flex justify-center lg:justify-start">
               <a
                 href="#docs"
-                className="inline-flex items-center gap-1.5 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 text-zinc-300 text-xs font-bold px-4 py-2.5 rounded-full transition-all"
+                className="inline-flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 hover:bg-zinc-800 text-white text-xs font-bold px-4 py-2.5 rounded-full transition-all"
               >
                 Read Architectural Spec
                 <ArrowRight size={13} className="stroke-[2.5]" />
@@ -671,152 +911,152 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 7. How envtrap Works (6-step flow) */}
+      {/* 8. How envtrap Works (6-step flow) */}
       <section id="how-it-works" className="steps-section-trigger max-w-7xl mx-auto px-6 py-20 relative z-10 text-center">
         <div className="space-y-4 mb-16">
-          <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Execution Flow</h2>
-          <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">How envtrap prevents leaks.</p>
+          <h2 className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Execution Flow</h2>
+          <p className="text-3xl sm:text-4xl font-black text-zinc-900 tracking-tight">How envtrap prevents leaks.</p>
         </div>
 
         {/* Steps flow horizontal container */}
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-6">
           <WorkStepCard
             stepNum="1"
-            icon={<Star size={16} className="text-indigo-400" />}
+            icon={<Star size={16} className="text-indigo-600" />}
             title="Secret Loaded"
             desc="Process starts and evaluates env parameters."
           />
           <WorkStepCard
             stepNum="2"
-            icon={<Send size={16} className="text-indigo-400" />}
+            icon={<Send size={16} className="text-indigo-600" />}
             title="Exfiltration Event"
             desc="Dependency tries to write out keys."
           />
           <WorkStepCard
             stepNum="3"
-            icon={<Compass size={16} className="text-indigo-400" />}
+            icon={<Compass size={16} className="text-indigo-600" />}
             title="Boundary Hit"
             desc="Interceptors capture payload stream."
           />
           <WorkStepCard
             stepNum="4"
-            icon={<Shield size={16} className="text-indigo-400" />}
+            icon={<Shield size={16} className="text-indigo-600" />}
             title="Matches Screened"
             desc="Entropy + signatures flag active key."
           />
           <WorkStepCard
             stepNum="5"
-            icon={<ShieldAlert size={16} className="text-indigo-400" />}
+            icon={<ShieldAlert size={16} className="text-indigo-600" />}
             title="Exfil Blocked"
             desc="Connection killed or output redacted."
           />
           <WorkStepCard
             stepNum="6"
-            icon={<FileText size={16} className="text-indigo-400" />}
+            icon={<FileText size={16} className="text-indigo-600" />}
             title="Report Logged"
-            desc="Encrypted SHA256 audit written to log."
+            desc="Encrypted SHA255 audit written to log."
           />
         </div>
       </section>
 
-      {/* 8. Highlights (AI-Safe, reports, installation cards) */}
+      {/* 9. Highlights (AI-Safe, reports, installation cards) */}
       <section id="installation" className="max-w-7xl mx-auto px-6 py-20 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Card A: AI-Safe by Design */}
-          <div className="bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 shadow-2xl flex flex-col justify-between backdrop-blur-md group hover:border-zinc-800 transition-colors duration-300">
+          <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between group hover:border-zinc-300 transition-colors duration-300">
             <div className="space-y-5">
-              <h4 className="text-lg font-bold text-white">AI-Safe by Design</h4>
+              <h4 className="text-lg font-bold text-zinc-900">AI-Safe by Design</h4>
               
               {/* Bad vs Good comparison visual */}
-              <div className="space-y-3.5 border border-zinc-900 rounded-xl p-4 bg-zinc-950/60 font-mono text-[11px]">
-                <div className="flex items-center justify-between pb-2.5 border-b border-zinc-900">
-                  <span className="text-rose-400 font-extrabold">BAD</span>
-                  <div className="flex items-center gap-1 bg-rose-955 bg-rose-950/30 text-rose-400 px-2 py-0.5 rounded-full font-bold text-[9px] border border-rose-900/40">
+              <div className="space-y-3.5 border border-zinc-200 rounded-xl p-4 bg-zinc-50/50 font-mono text-[11px]">
+                <div className="flex items-center justify-between pb-2.5 border-b border-zinc-200">
+                  <span className="text-rose-500 font-extrabold">BAD</span>
+                  <div className="flex items-center gap-1 bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full font-bold text-[9px] border border-rose-100">
                     <X size={10} className="stroke-[3.5]" />
                     Sent to AI History
                   </div>
                 </div>
-                <div className="text-zinc-500 font-bold select-none break-all">
+                <div className="text-zinc-450 font-bold select-none text-zinc-500 break-all">
                   sk_live_abc123...
                 </div>
 
-                <div className="flex items-center justify-between pt-3 pb-2.5 border-b border-zinc-900">
-                  <span className="text-emerald-400 font-extrabold">GOOD</span>
-                  <div className="flex items-center gap-1 bg-emerald-950/30 text-emerald-400 px-2 py-0.5 rounded-full font-bold text-[9px] border border-emerald-900/40">
+                <div className="flex items-center justify-between pt-3 pb-2.5 border-b border-zinc-200">
+                  <span className="text-emerald-600 font-extrabold">GOOD</span>
+                  <div className="flex items-center gap-1 bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-bold text-[9px] border border-emerald-100">
                     <Check size={10} className="stroke-[3.5]" />
                     Non-reversible
                   </div>
                 </div>
-                <div className="text-zinc-200 break-all font-bold">
+                <div className="text-zinc-700 break-all font-bold">
                   SHA256:e6b8eee7...
                 </div>
-                <div className="text-[10px] text-indigo-400 font-bold flex items-center gap-1 pt-1">
+                <div className="text-[10px] text-indigo-600 font-bold flex items-center gap-1 pt-1">
                   <ShieldCheck size={12} className="stroke-[2.5]" /> Safe for AI Tools
                 </div>
               </div>
 
-              <p className="text-zinc-400 text-xs md:text-sm leading-relaxed font-medium">
+              <p className="text-zinc-500 text-xs md:text-sm leading-relaxed font-semibold">
                 envtrap never prints raw secrets. Only non-reversible hashes are logged — safe for Claude Code, Copilot CLI, and other AI assisted environments.
               </p>
             </div>
             
-            <div className="pt-4 border-t border-zinc-900/80 mt-5 flex items-center gap-2 text-indigo-400 font-bold text-xs">
+            <div className="pt-4 border-t border-zinc-200 mt-5 flex items-center gap-2 text-indigo-600 font-bold text-xs">
               <Shield size={14} />
               <span>Cryptographic Safety Guard</span>
             </div>
           </div>
 
           {/* Card B: Machine Readable Reports */}
-          <div className="bg-zinc-955 bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 shadow-2xl flex flex-col justify-between backdrop-blur-md group hover:border-zinc-800 transition-colors duration-300">
+          <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between group hover:border-zinc-300 transition-colors duration-300">
             <div className="space-y-5">
-              <h4 className="text-lg font-bold text-white">Machine Readable Reports</h4>
+              <h4 className="text-lg font-bold text-zinc-900">Machine Readable Reports</h4>
               
               {/* JSON code box */}
-              <div className="border border-zinc-900 rounded-xl p-4 bg-zinc-950/60 text-zinc-300 font-mono text-[11px] leading-relaxed overflow-x-auto shadow-inner">
-                <span className="text-zinc-650 text-zinc-600">{`{`}</span>
+              <div className="border border-zinc-200 rounded-xl p-4 bg-zinc-50/50 text-zinc-750 font-mono text-[11px] leading-relaxed overflow-x-auto shadow-inner">
+                <span className="text-zinc-400">{`{`}</span>
                 <div className="pl-4">
-                  <span className="text-indigo-400 font-semibold">"secretName"</span>: <span className="text-emerald-400 font-semibold">"STRIPE_SECRET_KEY"</span>,
+                  <span className="text-indigo-650 font-semibold">"secretName"</span>: <span className="text-emerald-650 font-semibold">"STRIPE_SECRET_KEY"</span>,
                   <br />
-                  <span className="text-indigo-400 font-semibold">"channel"</span>: <span className="text-emerald-400 font-semibold">"dns"</span>,
+                  <span className="text-indigo-655 font-semibold">"channel"</span>: <span className="text-emerald-650 font-semibold">"dns"</span>,
                   <br />
-                  <span className="text-indigo-400 font-semibold">"sha256"</span>: <span className="text-emerald-400 font-semibold">"e6b8eee70bd6..."</span>,
+                  <span className="text-indigo-650 font-semibold">"sha255"</span>: <span className="text-emerald-650 font-semibold">"e6b8eee70bd6..."</span>,
                   <br />
-                  <span className="text-indigo-400 font-semibold">"context"</span>: <span className="text-emerald-400 font-semibold">"[REDACTED].attacker.com"</span>,
+                  <span className="text-indigo-650 font-semibold">"context"</span>: <span className="text-emerald-650 font-semibold">"[REDACTED].attacker.com"</span>,
                   <br />
-                  <span className="text-indigo-400 font-semibold">"timestamp"</span>: <span className="text-zinc-400 font-semibold">170131604545</span>
+                  <span className="text-indigo-650 font-semibold">"timestamp"</span>: <span className="text-zinc-600 font-semibold">170131604545</span>
                 </div>
-                <span className="text-zinc-600">{`}`}</span>
+                <span className="text-zinc-400">{`}`}</span>
               </div>
 
-              <p className="text-zinc-400 text-xs md:text-sm leading-relaxed font-medium">
+              <p className="text-zinc-500 text-xs md:text-sm leading-relaxed font-semibold">
                 Structured JSON schema reports let your CI/CD systems or autonomous AI agents automatically locate and patch the source of a leaked parameter.
               </p>
             </div>
 
-            <div className="pt-4 border-t border-zinc-900/80 mt-5 flex items-center gap-2 text-indigo-400 font-bold text-xs">
+            <div className="pt-4 border-t border-zinc-200 mt-5 flex items-center gap-2 text-indigo-600 font-bold text-xs">
               <Bot size={14} />
               <span>AI Agent Integrable Schema</span>
             </div>
           </div>
 
           {/* Card C: Quick Setup */}
-          <div className="bg-zinc-955 bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 shadow-2xl flex flex-col justify-between backdrop-blur-md group hover:border-zinc-800 transition-colors duration-300">
+          <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between group hover:border-zinc-300 transition-colors duration-300">
             <div className="space-y-5">
-              <h4 className="text-lg font-bold text-white">Installation</h4>
+              <h4 className="text-lg font-bold text-zinc-900">Installation</h4>
               
               {/* Copy commands steps */}
               <div className="space-y-3">
                 {/* Step 1 */}
                 <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-indigo-400 uppercase tracking-widest">
-                    <span className="w-3.5 h-3.5 rounded-full bg-indigo-950 border border-indigo-900/40 flex items-center justify-center text-[9px]">1</span>
+                  <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-indigo-600 uppercase tracking-widest">
+                    <span className="w-3.5 h-3.5 rounded-full bg-indigo-50 flex items-center justify-center text-[9px]">1</span>
                     <span>Install globally</span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 bg-zinc-950/60 border border-zinc-900 rounded-xl px-3.5 py-2.5 font-mono text-[11px] text-zinc-350 shadow-inner group/btn">
+                  <div className="flex items-center justify-between gap-2 bg-zinc-50/50 border border-zinc-200 rounded-xl px-3.5 py-2.5 font-mono text-[11px] text-zinc-650 shadow-inner group/btn">
                     <span className="truncate select-all">npm install -g envtrap</span>
                     <button
                       onClick={() => copyToClipboard("npm install -g envtrap", setCopiedInstall)}
-                      className="text-zinc-500 hover:text-zinc-350 transition-colors cursor-pointer"
+                      className="text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
                       aria-label="Copy install command"
                     >
                       {copiedInstall ? <Check size={12} className="text-emerald-500 stroke-[3]" /> : <Copy size={12} />}
@@ -826,15 +1066,15 @@ export default function Home() {
 
                 {/* Step 2 */}
                 <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-indigo-400 uppercase tracking-widest">
-                    <span className="w-3.5 h-3.5 rounded-full bg-indigo-950 border border-indigo-900/40 flex items-center justify-center text-[9px]">2</span>
+                  <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-indigo-600 uppercase tracking-widest">
+                    <span className="w-3.5 h-3.5 rounded-full bg-indigo-50 flex items-center justify-center text-[9px]">2</span>
                     <span>Start application</span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 bg-zinc-950/60 border border-zinc-900 rounded-xl px-3.5 py-2.5 font-mono text-[11px] text-zinc-300 shadow-inner group/btn">
+                  <div className="flex items-center justify-between gap-2 bg-zinc-50/50 border border-zinc-200 rounded-xl px-3.5 py-2.5 font-mono text-[11px] text-zinc-650 shadow-inner group/btn">
                     <span className="truncate select-all">envtrap run node app.js</span>
                     <button
                       onClick={() => copyToClipboard("envtrap run node app.js", setCopiedRun)}
-                      className="text-zinc-500 hover:text-zinc-350 transition-colors cursor-pointer"
+                      className="text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
                       aria-label="Copy run command"
                     >
                       {copiedRun ? <Check size={12} className="text-emerald-500 stroke-[3]" /> : <Copy size={12} />}
@@ -843,69 +1083,69 @@ export default function Home() {
                 </div>
               </div>
 
-              <p className="text-zinc-400 text-xs md:text-sm leading-relaxed font-medium">
+              <p className="text-zinc-550 text-zinc-500 text-xs md:text-sm leading-relaxed font-semibold">
                 Protect your production containers and local environments instantly without modifying code dependencies or configuration.
               </p>
             </div>
 
-            <div className="pt-4 border-t border-zinc-900/80 mt-5 flex items-center gap-1.5 text-indigo-400 font-bold text-xs">
+            <div className="pt-4 border-t border-zinc-200 mt-5 flex items-center gap-1.5 text-indigo-600 font-bold text-xs">
               <span>That's it. 🚀</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 9. Engineered for Enterprise Scale (10-Feature Grid) */}
+      {/* 10. Engineered for Enterprise Scale */}
       <section className="max-w-7xl mx-auto px-6 py-16 relative z-10">
-        <div className="border-t border-zinc-900/80 pt-16">
+        <div className="border-t border-zinc-200 pt-16">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-x-8 gap-y-12">
             <MiniFeature
-              icon={<Shield size={14} className="text-indigo-400" />}
+              icon={<Shield size={14} className="text-indigo-600" />}
               title="Dynamic TLS Certificates"
               desc="Signed in RAM as requested."
             />
             <MiniFeature
-              icon={<Terminal size={14} className="text-indigo-400" />}
+              icon={<Terminal size={14} className="text-indigo-600" />}
               title="Native Addon Coverage"
               desc="Captures low-level outputs."
             />
             <MiniFeature
-              icon={<Globe size={14} className="text-indigo-400" />}
+              icon={<Globe size={14} className="text-indigo-600" />}
               title="DNS Exfiltration Check"
               desc="Flags secrets hidden in host queries."
             />
             <MiniFeature
-              icon={<Activity size={14} className="text-indigo-400" />}
+              icon={<Activity size={14} className="text-indigo-600" />}
               title="Shannon Entropy Check"
               desc="Detects random obfuscated strings."
             />
             <MiniFeature
-              icon={<Link size={14} className="text-indigo-400" />}
+              icon={<Link size={14} className="text-indigo-600" />}
               title="ESM Hook Interception"
               desc="Bypassing-resilient registration hooks."
             />
             <MiniFeature
-              icon={<ShieldAlert size={14} className="text-indigo-400" />}
+              icon={<ShieldAlert size={14} className="text-indigo-600" />}
               title="Egress Firewall"
               desc="Local network request auditing."
             />
             <MiniFeature
-              icon={<HardDrive size={14} className="text-indigo-400" />}
+              icon={<HardDrive size={14} className="text-indigo-600" />}
               title="In-Memory Cache"
               desc="No secrets are written to disks."
             />
             <MiniFeature
-              icon={<Bot size={14} className="text-indigo-400" />}
+              icon={<Bot size={14} className="text-indigo-600" />}
               title="AI Safe Sanitizing"
               desc="Converts logs to safe SHA hashes."
             />
             <MiniFeature
-              icon={<Laptop size={14} className="text-indigo-400" />}
+              icon={<Laptop size={14} className="text-indigo-600" />}
               title="Cross Platform"
               desc="Consistent on macOS, Linux, Windows."
             />
             <MiniFeature
-              icon={<Zap size={14} className="text-indigo-400" />}
+              icon={<Zap size={14} className="text-indigo-600" />}
               title="Minimal Overhead"
               desc="Extremely lightweight event checking."
             />
@@ -913,9 +1153,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 10. Pre-Footer Banner */}
+      {/* 11. Pre-Footer Banner */}
       <section className="max-w-7xl mx-auto px-6 py-20 relative z-10">
-        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-950 via-zinc-950 to-zinc-900 border border-indigo-900/30 rounded-3xl p-8 md:p-14 text-white shadow-2xl">
+        <div className="relative overflow-hidden bg-[#09090b] border border-zinc-800 rounded-3xl p-8 md:p-14 text-white shadow-xl">
           {/* Decorative radial blur in banner */}
           <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -925,7 +1165,7 @@ export default function Home() {
           </div>
 
           <div className="max-w-2xl space-y-6 relative z-10">
-            <LogoIcon size={56} className="bg-indigo-950/60 border border-indigo-900/30 rounded-2xl p-2.5" />
+            <LogoIcon size={56} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-2.5" />
             <h3 className="text-3xl md:text-4xl font-extrabold leading-[1.2] tracking-tight">
               Secrets Should Never Leave The Process. <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-violet-300 to-purple-300">Monitor. Detect. Block.</span> <br />
@@ -935,14 +1175,14 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
               <a
                 href="#installation"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-950 font-black text-sm px-6 py-3.5 rounded-full shadow-lg transition-all active:scale-[0.98]"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-white hover:bg-zinc-100 text-zinc-950 font-black text-sm px-6 py-3.5 rounded-full shadow-md transition-all active:scale-[0.98]"
               >
                 Get Started Now
                 <ArrowRight size={16} className="stroke-[2.5]" />
               </a>
               <a
                 href="#docs"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-805 border-zinc-800 text-zinc-300 font-extrabold text-sm px-6 py-3.5 rounded-full backdrop-blur-sm transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 text-zinc-300 font-extrabold text-sm px-6 py-3.5 rounded-full backdrop-blur-sm transition-all"
               >
                 <BookOpen size={16} />
                 Read Documentation
@@ -952,10 +1192,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 11. Footer */}
-      <footer className="border-t border-zinc-900/80 bg-[#030303] pt-16 pb-12 transition-all relative z-10">
+      {/* 12. Footer */}
+      <footer className="border-t border-zinc-200 bg-white pt-16 pb-12 transition-all relative z-10">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-8 pb-12 border-b border-zinc-900">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-8 pb-12 border-b border-zinc-200">
             {/* Brand column */}
             <div className="col-span-2 space-y-4">
               <LogoBrand />
@@ -966,48 +1206,48 @@ export default function Home() {
 
             {/* Links Columns */}
             <div className="space-y-4">
-              <h5 className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Product</h5>
-              <ul className="space-y-2.5 text-xs font-bold text-zinc-400">
-                <li><a href="#features" className="hover:text-indigo-400 transition-colors">Features</a></li>
-                <li><a href="#attack-surfaces" className="hover:text-indigo-400 transition-colors">Attack Surfaces</a></li>
-                <li><a href="#architecture" className="hover:text-indigo-400 transition-colors">Architecture</a></li>
+              <h5 className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Product</h5>
+              <ul className="space-y-2.5 text-xs font-bold text-zinc-500">
+                <li><a href="#features" className="hover:text-indigo-600 transition-colors">Features</a></li>
+                <li><a href="#how-it-works" className="hover:text-indigo-600 transition-colors">How It Works</a></li>
+                <li><a href="#architecture" className="hover:text-indigo-600 transition-colors">Architecture</a></li>
               </ul>
             </div>
 
             <div className="space-y-4">
-              <h5 className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Resources</h5>
-              <ul className="space-y-2.5 text-xs font-bold text-zinc-400">
-                <li><a href="#docs" className="hover:text-indigo-400 transition-colors">Documentation</a></li>
-                <li><a href="#" className="hover:text-indigo-400 transition-colors">CLI Reference</a></li>
-                <li><a href="#" className="hover:text-indigo-400 transition-colors">Examples</a></li>
+              <h5 className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Resources</h5>
+              <ul className="space-y-2.5 text-xs font-bold text-zinc-500">
+                <li><a href="#docs" className="hover:text-indigo-600 transition-colors">Documentation</a></li>
+                <li><a href="#" className="hover:text-indigo-600 transition-colors">CLI Reference</a></li>
+                <li><a href="#" className="hover:text-indigo-600 transition-colors">Examples</a></li>
               </ul>
             </div>
 
             <div className="space-y-4">
-              <h5 className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Community</h5>
-              <ul className="space-y-2.5 text-xs font-bold text-zinc-400">
-                <li><a href="https://github.com" className="hover:text-indigo-400 transition-colors">GitHub</a></li>
-                <li><a href="#" className="hover:text-indigo-400 transition-colors">Discussions</a></li>
-                <li><a href="#" className="hover:text-indigo-400 transition-colors">Issues</a></li>
+              <h5 className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Community</h5>
+              <ul className="space-y-2.5 text-xs font-bold text-zinc-500">
+                <li><a href="https://github.com" className="hover:text-indigo-600 transition-colors">GitHub</a></li>
+                <li><a href="#" className="hover:text-indigo-600 transition-colors">Discussions</a></li>
+                <li><a href="#" className="hover:text-indigo-600 transition-colors">Issues</a></li>
               </ul>
             </div>
 
             <div className="space-y-4">
-              <h5 className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Legal</h5>
-              <ul className="space-y-2.5 text-xs font-bold text-zinc-400">
-                <li><a href="#" className="hover:text-indigo-400 transition-colors">MIT License</a></li>
-                <li><a href="#" className="hover:text-indigo-400 transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-indigo-400 transition-colors">Terms of Use</a></li>
+              <h5 className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Legal</h5>
+              <ul className="space-y-2.5 text-xs font-bold text-zinc-500">
+                <li><a href="#" className="hover:text-indigo-600 transition-colors">MIT License</a></li>
+                <li><a href="#" className="hover:text-indigo-600 transition-colors">Privacy Policy</a></li>
+                <li><a href="#" className="hover:text-indigo-600 transition-colors">Terms of Use</a></li>
               </ul>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-[10px] font-bold text-zinc-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-[10px] font-bold text-zinc-400">
             <span>© {new Date().getFullYear()} envtrap. All rights reserved.</span>
             <div className="flex items-center gap-6">
-              <a href="#" className="hover:text-zinc-300 transition-colors">Status</a>
-              <a href="#" className="hover:text-zinc-300 transition-colors">Security Audit</a>
-              <a href="#" className="hover:text-zinc-300 transition-colors">Contact Support</a>
+              <a href="#" className="hover:text-zinc-650 transition-colors">Status</a>
+              <a href="#" className="hover:text-zinc-655 transition-colors">Security Audit</a>
+              <a href="#" className="hover:text-zinc-655 transition-colors">Contact Support</a>
             </div>
           </div>
         </div>
@@ -1032,14 +1272,14 @@ function AttackSurfaceRow({
   statusType: "danger" | "warning";
 }) {
   return (
-    <div className="attack-surface-row-anim flex items-center justify-between gap-4 py-3.5 border-b border-zinc-900 last:border-b-0 group">
+    <div className="attack-surface-row-anim flex items-center justify-between gap-4 py-3.5 border-b border-zinc-200 last:border-b-0 group">
       <div className="flex gap-4">
-        <span className="font-mono text-[10px] font-extrabold text-zinc-650 text-zinc-600 pt-0.5 select-none">{num}</span>
+        <span className="font-mono text-[10px] font-extrabold text-zinc-400 pt-0.5 select-none">{num}</span>
         <div className="space-y-0.5">
-          <h5 className="text-xs font-bold text-zinc-200 group-hover:text-indigo-400 transition-colors">
+          <h5 className="text-xs font-bold text-zinc-800 group-hover:text-indigo-600 transition-colors">
             {title}
           </h5>
-          <p className="text-[11px] text-zinc-500 max-w-sm md:max-w-md font-medium leading-relaxed">
+          <p className="text-[11px] text-zinc-500 max-w-sm md:max-w-md font-semibold leading-relaxed">
             {desc}
           </p>
         </div>
@@ -1048,8 +1288,8 @@ function AttackSurfaceRow({
       <span
         className={`text-[9px] font-black tracking-widest shrink-0 uppercase px-2 py-0.5 rounded border ${
           statusType === "danger"
-            ? "bg-rose-950/40 text-rose-400 border-rose-900/30"
-            : "bg-amber-950/40 text-amber-400 border-amber-900/30"
+            ? "bg-rose-50 text-rose-600 border-rose-100"
+            : "bg-amber-50 text-amber-600 border-amber-100"
         }`}
       >
         {status}
@@ -1068,15 +1308,15 @@ function MiniFeature({
   desc: string;
 }) {
   return (
-    <div className="flex gap-3 items-start animate-slide-up">
-      <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 mt-0.5">
+    <div className="flex gap-3 items-start">
+      <div className="w-7 h-7 rounded-lg bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0 mt-0.5">
         {icon}
       </div>
       <div className="space-y-1">
-        <h5 className="text-[11.5px] font-bold text-zinc-200 tracking-wide leading-tight">
+        <h5 className="text-[11.5px] font-bold text-zinc-800 tracking-wide leading-tight">
           {title}
         </h5>
-        <p className="text-[10px] text-zinc-500 font-semibold leading-normal">
+        <p className="text-[10px] text-zinc-550 text-zinc-500 font-semibold leading-normal">
           {desc}
         </p>
       </div>
@@ -1096,17 +1336,17 @@ function WorkStepCard({
   desc: string;
 }) {
   return (
-    <div className="step-card-anim relative bg-zinc-950/40 border border-zinc-900 rounded-2xl p-5 shadow-inner text-left flex flex-col justify-between group overflow-hidden hover:border-zinc-800 transition-colors duration-300">
+    <div className="step-card-anim relative bg-white border border-zinc-200 rounded-2xl p-5 shadow-xs text-left flex flex-col justify-between group overflow-hidden hover:border-zinc-300 transition-colors duration-300">
       {/* Subtle indicator for order */}
-      <span className="absolute -right-3 -top-3 text-5xl font-black text-zinc-900 select-none group-hover:text-indigo-500/5 transition-colors">
+      <span className="absolute -right-3 -top-3 text-5xl font-black text-zinc-50 select-none group-hover:text-indigo-500/5 transition-colors">
         {stepNum}
       </span>
 
       <div className="space-y-3.5 relative z-10">
-        <div className="w-8 h-8 rounded-full bg-indigo-950 border border-indigo-900/40 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
           {icon}
         </div>
-        <h4 className="text-xs font-bold text-zinc-200">
+        <h4 className="text-xs font-bold text-zinc-800">
           {stepNum}. {title}
         </h4>
         <p className="text-[10px] text-zinc-500 font-semibold leading-normal">
