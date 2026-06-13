@@ -1,0 +1,14 @@
+{
+  "mode": "block",
+  "channels": {
+    "https": true,
+    "subprocess": true,
+    "dns": true,
+    "stdout": true,
+    "entropy": true
+  },
+  "exclusions": {
+    "domains": [],
+    "envVars": ["NODE_ENV", "PORT"]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "test-server",
+  "version": "1.0.0",
+  "description": "Test server for envtrap runtime secret leak detection",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node app.js",
+    "secure": "envtrap run node app.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "envtrap": "file:../package",
+    "express": "^4.19.2"
+  }
+}
