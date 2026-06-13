@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Zap,
   Shield,
@@ -31,6 +31,8 @@ import InteractiveOrbits from "./components/InteractiveOrbits";
 import Comparison from "./components/Comparison";
 import Architecture from "./components/Architecture";
 import TerminalFlow from "./components/TerminalFlow";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 export default function Home() {
   const [copiedInstall, setCopiedInstall] = useState(false);
@@ -54,6 +56,104 @@ export default function Home() {
     setCopiedState(true);
     setTimeout(() => setCopiedState(false), 2000);
   };
+
+  // GSAP Animations
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      gsap.registerPlugin(ScrollTrigger);
+
+      // 1. Hero Entrance Timeline
+      const heroTl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      
+      // Set initial hidden states to prevent flash
+      gsap.set([".hero-tag", ".hero-title", ".hero-desc", ".hero-ctas", ".hero-trusted", ".hero-orbits"], {
+        opacity: 0
+      });
+
+      heroTl.fromTo(".hero-tag", { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6 })
+            .fromTo(".hero-title", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, "-=0.45")
+            .fromTo(".hero-desc", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6 }, "-=0.5")
+            .fromTo(".hero-ctas", { y: 15, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5 }, "-=0.4")
+            .fromTo(".hero-trusted", { opacity: 0 }, { opacity: 1, duration: 0.6 }, "-=0.3")
+            .fromTo(".hero-orbits", { scale: 0.95, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8 }, "-=0.6");
+
+      // 2. Bento Grid Items Staggered Entrance
+      gsap.set(".bento-item", { y: 35, opacity: 0 });
+      gsap.fromTo(
+        ".bento-item",
+        { y: 35, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.7,
+          stagger: 0.12,
+          ease: "power2.out",
+          scrollTrigger: {
+            trigger: ".bento-grid-trigger",
+            start: "top 80%",
+          },
+        }
+      );
+
+      // 3. Comparison Section Slide Up
+      gsap.set(".comparison-section-anim", { y: 30, opacity: 0 });
+      gsap.fromTo(
+        ".comparison-section-anim",
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power2.out",
+          scrollTrigger: {
+            trigger: ".comparison-section-anim",
+            start: "top 85%",
+          },
+        }
+      );
+
+      // 4. Attack Surfaces Row Stagger
+      gsap.set(".attack-surface-row-anim", { x: -25, opacity: 0 });
+      gsap.fromTo(
+        ".attack-surface-row-anim",
+        { x: -25, opacity: 0 },
+        {
+          x: 0,
+          opacity: 1,
+          duration: 0.55,
+          stagger: 0.08,
+          ease: "power1.out",
+          scrollTrigger: {
+            trigger: ".attack-surfaces-trigger",
+            start: "top 80%",
+          },
+        }
+      );
+
+      // 5. Steps Sequence Card Stagger
+      gsap.set(".step-card-anim", { scale: 0.96, opacity: 0 });
+      gsap.fromTo(
+        ".step-card-anim",
+        { scale: 0.96, opacity: 0 },
+        {
+          scale: 1,
+          opacity: 1,
+          duration: 0.5,
+          stagger: 0.08,
+          ease: "power2.out",
+          scrollTrigger: {
+            trigger: ".steps-section-trigger",
+            start: "top 82%",
+          },
+        }
+      );
+
+      // Cleanup function to kill active triggers on component unmount
+      return () => {
+        ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+      };
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#030303] text-zinc-100 font-sans antialiased selection:bg-indigo-500/20 selection:text-indigo-200 relative">
@@ -86,7 +186,7 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <a
               href="#installation"
-              className="hidden sm:inline-flex items-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-955 text-xs font-black px-5 py-2.5 rounded-full transition-all text-zinc-950 shadow-lg shadow-white/5"
+              className="hidden sm:inline-flex items-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-955 text-xs font-black px-5 py-2.5 rounded-full transition-all text-zinc-955 shadow-lg shadow-white/5"
             >
               Get Started
               <ArrowRight size={13} className="stroke-[2.5]" />
@@ -159,13 +259,13 @@ export default function Home() {
           {/* Left Column Text details */}
           <div className="lg:col-span-6 space-y-8 text-left">
             {/* Tag Badge */}
-            <div className="inline-flex items-center gap-2 bg-indigo-950/40 border border-indigo-900/35 rounded-full px-3.5 py-1.5 text-[10px] font-bold text-indigo-400 tracking-wider uppercase animate-slide-up">
+            <div className="hero-tag inline-flex items-center gap-2 bg-indigo-950/40 border border-indigo-900/35 rounded-full px-3.5 py-1.5 text-[10px] font-bold text-indigo-400 tracking-wider uppercase">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />
               Runtime Secret Leak Prevention for Node.js
             </div>
 
             {/* Headline */}
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.08] animate-slide-up delay-100">
+            <h1 className="hero-title text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.08]">
               Stop secrets <br />
               before they <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400">
@@ -174,12 +274,12 @@ export default function Home() {
             </h1>
 
             {/* Paragraph description */}
-            <p className="text-sm sm:text-base text-zinc-400 leading-relaxed max-w-lg animate-slide-up delay-200 font-medium">
+            <p className="hero-desc text-sm sm:text-base text-zinc-400 leading-relaxed max-w-lg font-medium">
               envtrap wraps Node.js runtimes to intercept and block accidental or malicious exfiltration of sensitive data across logs, HTTP/HTTPS channels, DNS tunneling, and child processes in real-time.
             </p>
 
             {/* Hero CTAs */}
-            <div className="flex flex-row items-center gap-4 animate-slide-up delay-300">
+            <div className="hero-ctas flex flex-row items-center gap-4">
               <a
                 href="#installation"
                 className="inline-flex items-center justify-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-950 font-black text-sm px-6 py-3 rounded-full shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -191,7 +291,7 @@ export default function Home() {
                 href="https://github.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 text-zinc-300 font-extrabold text-sm px-6 py-3 rounded-full shadow-md transition-all active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-2 bg-zinc-955 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 text-zinc-300 font-extrabold text-sm px-6 py-3 rounded-full shadow-md transition-all active:scale-[0.98]"
               >
                 View on GitHub
                 <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current text-zinc-300" xmlns="http://www.w3.org/2000/svg">
@@ -201,9 +301,9 @@ export default function Home() {
             </div>
 
             {/* Trusted By Section */}
-            <div className="pt-10 border-t border-zinc-900/60 max-w-xl animate-slide-up delay-400">
+            <div className="hero-trusted pt-10 border-t border-zinc-900/60 max-w-xl">
               <div className="flex items-center gap-4 mb-4.5">
-                <span className="text-[9px] font-extrabold text-zinc-550 text-zinc-500 tracking-widest whitespace-nowrap uppercase">Trusted by developer teams at</span>
+                <span className="text-[9px] font-extrabold text-zinc-500 tracking-widest whitespace-nowrap uppercase">Trusted by developer teams at</span>
                 <div className="w-full h-px bg-zinc-900/80" />
               </div>
               <div className="flex flex-wrap items-center gap-x-8 gap-y-4 text-zinc-500">
@@ -244,7 +344,7 @@ export default function Home() {
           </div>
 
           {/* Right Column Interactive Orbits Visualizer */}
-          <div className="lg:col-span-6 w-full flex justify-center lg:justify-end animate-slide-up delay-500">
+          <div className="hero-orbits lg:col-span-6 w-full flex justify-center lg:justify-end">
             <InteractiveOrbits />
           </div>
 
@@ -252,7 +352,7 @@ export default function Home() {
       </section>
 
       {/* 3. Premium Bento Grid Features */}
-      <section id="features" className="max-w-7xl mx-auto px-6 py-20 relative z-10">
+      <section id="features" className="bento-grid-trigger max-w-7xl mx-auto px-6 py-20 relative z-10">
         <div className="space-y-4 text-center mb-16">
           <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Core Capabilities</h2>
           <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Engineered for absolute security.</p>
@@ -262,7 +362,7 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
           
           {/* Card 1: Zero Configuration (Col Span 3) */}
-          <div className="bento-card md:col-span-3 flex flex-col justify-between group">
+          <div className="bento-item bento-card md:col-span-3 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
                 <Zap size={18} />
@@ -293,11 +393,11 @@ export default function Home() {
               {/* Console commands display */}
               <div className="p-4 space-y-2.5 text-zinc-350 select-all relative group/copy">
                 <div>
-                  <span className="text-zinc-650 text-indigo-500/60 font-bold">$ </span>
+                  <span className="text-indigo-500/60 font-bold">$ </span>
                   {pkgCommands[pkgManager].install}
                 </div>
                 <div>
-                  <span className="text-zinc-650 text-indigo-500/60 font-bold">$ </span>
+                  <span className="text-indigo-500/60 font-bold">$ </span>
                   {pkgCommands[pkgManager].run}
                 </div>
                 <button
@@ -312,7 +412,7 @@ export default function Home() {
           </div>
 
           {/* Card 2: In-Memory CA (Col Span 3) */}
-          <div className="bento-card md:col-span-3 flex flex-col justify-between group">
+          <div className="bento-item bento-card md:col-span-3 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
                 <Shield size={18} />
@@ -331,7 +431,7 @@ export default function Home() {
                 <span className="text-zinc-500">2. Save public cert only</span>
                 <span className="text-rose-500 font-bold">3. Delete CA from memory on exit</span>
               </div>
-              <div className="border border-zinc-850 bg-zinc-950 rounded-xl p-3 flex flex-col items-center gap-1.5 shrink-0 shadow-lg">
+              <div className="border border-zinc-855 border-zinc-850 bg-zinc-955 bg-zinc-950 rounded-xl p-3 flex flex-col items-center gap-1.5 shrink-0 shadow-lg">
                 <ShieldCheck size={20} className="text-indigo-400 shadow-glow" />
                 <span className="font-bold text-[9px] text-zinc-300">envtrap CA</span>
                 <span className="px-1.5 py-0.5 rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-900/30 text-[8px] font-extrabold uppercase">Verified</span>
@@ -340,7 +440,7 @@ export default function Home() {
           </div>
 
           {/* Card 3: Real-Time Interception (Col Span 3) */}
-          <div className="bento-card md:col-span-3 flex flex-col justify-between group">
+          <div className="bento-item bento-card md:col-span-3 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
                 <Eye size={18} />
@@ -365,7 +465,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="border border-indigo-950/60 rounded-xl p-3 bg-indigo-950/10 flex flex-col justify-between h-24 shadow-[0_0_15px_rgba(99,102,241,0.05)]">
+              <div className="border border-indigo-955 border-indigo-950/60 rounded-xl p-3 bg-indigo-950/10 flex flex-col justify-between h-24 shadow-[0_0_15px_rgba(99,102,241,0.05)]">
                 <div className="flex justify-between items-center text-indigo-400 font-bold">
                   <span>envtrap SHIELD</span>
                   <ShieldCheck size={12} />
@@ -380,7 +480,7 @@ export default function Home() {
           </div>
 
           {/* Card 4: AI-Safe Redacted Reporting (Col Span 3) */}
-          <div className="bento-card md:col-span-3 flex flex-col justify-between group">
+          <div className="bento-item bento-card md:col-span-3 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
                 <Bot size={18} />
@@ -399,7 +499,7 @@ export default function Home() {
                   <button
                     onClick={() => setRedactSandbox("raw")}
                     className={`px-2.5 py-1 rounded-md transition-all font-bold ${
-                      redactSandbox === "raw" ? "bg-rose-950/60 text-rose-400 border border-rose-900/30" : "text-zinc-500 hover:text-zinc-300"
+                      redactSandbox === "raw" ? "bg-rose-950/60 text-rose-450 border border-rose-900/30" : "text-zinc-500 hover:text-zinc-300"
                     }`}
                   >
                     Raw Output
@@ -419,11 +519,11 @@ export default function Home() {
                 {redactSandbox === "raw" ? (
                   <div className="text-rose-450 leading-relaxed text-zinc-400">
                     <div>console.log("Configuration loaded:", <span className="text-rose-400 font-bold">sk_live_51NzkSDFG889...</span>)</div>
-                    <div className="text-zinc-600 font-bold mt-1 text-[8px]">⚠️ DANGER: PRIVATE KEY VISIBLE IN CLEAR TEXT</div>
+                    <div className="text-zinc-650 font-bold mt-1 text-[8px]">⚠️ DANGER: PRIVATE KEY VISIBLE IN CLEAR TEXT</div>
                   </div>
                 ) : (
-                  <div className="text-emerald-450 leading-relaxed text-zinc-300">
-                    <div>console.log("Configuration loaded:", <span className="text-emerald-400 font-bold">[REDACTED: SHA256:f7b822da]</span>)</div>
+                  <div className="text-emerald-455 text-zinc-300 leading-relaxed">
+                    <div>console.log("Configuration loaded:", <span className="text-emerald-450 font-bold">[REDACTED: SHA256:f7b822da]</span>)</div>
                     <div className="text-indigo-400 font-bold mt-1 text-[8px] flex items-center gap-1">
                       <ShieldCheck size={11} className="stroke-[2.5]" /> SECURE FOR AI CODE AGENTS & LOG AGGREGATORS
                     </div>
@@ -434,7 +534,7 @@ export default function Home() {
           </div>
 
           {/* Card 5: 100% Local Execution (Col Span 6) */}
-          <div className="bento-card md:col-span-6 flex flex-col md:flex-row items-center justify-between gap-8 group">
+          <div className="bento-item bento-card md:col-span-6 flex flex-col md:flex-row items-center justify-between gap-8 group">
             <div className="space-y-3 md:max-w-md">
               <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 transition-transform group-hover:scale-105">
                 <Lock size={18} />
@@ -452,7 +552,7 @@ export default function Home() {
             {/* Visual indicator representation */}
             <div className="w-full md:w-64 border border-zinc-900 rounded-xl bg-zinc-950/30 p-4 font-mono text-[9px] space-y-3 shadow-inner">
               <div className="flex justify-between items-center">
-                <span className="text-zinc-550 text-zinc-500 font-bold uppercase tracking-wider">Telemetry Probe Check</span>
+                <span className="text-zinc-500 font-bold uppercase tracking-wider">Telemetry Probe Check</span>
                 <span className="text-indigo-400 font-bold">127.0.0.1 ONLY</span>
               </div>
               <div className="space-y-2 border-t border-zinc-900 pt-2 text-zinc-400">
@@ -462,7 +562,7 @@ export default function Home() {
                 </div>
                 <div className="flex justify-between">
                   <span>Data Reporting Servers</span>
-                  <span className="text-zinc-600 font-semibold">NOT DEFINED</span>
+                  <span className="text-zinc-650 font-semibold">NOT DEFINED</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Offline Air-Gapped Mode</span>
@@ -487,10 +587,10 @@ export default function Home() {
       </section>
 
       {/* 5. Double Panel (Why Existing Tools Fail & Five Runtime Attack Surfaces) */}
-      <section id="attack-surfaces" className="max-w-7xl mx-auto px-6 py-20 relative z-10">
+      <section id="attack-surfaces" className="attack-surfaces-trigger max-w-7xl mx-auto px-6 py-20 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-stretch">
           {/* Left Panel: Comparison */}
-          <div className="space-y-6 flex flex-col">
+          <div className="comparison-section-anim space-y-6 flex flex-col">
             <h3 className="text-2xl font-extrabold tracking-tight text-white pl-2">
               Why Static Tools Fail
             </h3>
@@ -504,7 +604,7 @@ export default function Home() {
             <h3 className="text-2xl font-extrabold tracking-tight text-white pl-2">
               Five Runtime Attack Surfaces
             </h3>
-            <div className="flex-1 bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 md:p-8 shadow-2xl space-y-4 flex flex-col justify-between backdrop-blur-md">
+            <div className="flex-1 bg-zinc-955 bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 md:p-8 shadow-2xl space-y-4 flex flex-col justify-between backdrop-blur-md">
               <AttackSurfaceRow
                 num="01"
                 title="stdout / stderr streams"
@@ -572,7 +672,7 @@ export default function Home() {
       </section>
 
       {/* 7. How envtrap Works (6-step flow) */}
-      <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-20 relative z-10 text-center">
+      <section id="how-it-works" className="steps-section-trigger max-w-7xl mx-auto px-6 py-20 relative z-10 text-center">
         <div className="space-y-4 mb-16">
           <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Execution Flow</h2>
           <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">How envtrap prevents leaks.</p>
@@ -631,18 +731,18 @@ export default function Home() {
               <div className="space-y-3.5 border border-zinc-900 rounded-xl p-4 bg-zinc-950/60 font-mono text-[11px]">
                 <div className="flex items-center justify-between pb-2.5 border-b border-zinc-900">
                   <span className="text-rose-400 font-extrabold">BAD</span>
-                  <div className="flex items-center gap-1 bg-rose-950/30 text-rose-450 px-2 py-0.5 rounded-full font-bold text-[9px] border border-rose-900/40">
+                  <div className="flex items-center gap-1 bg-rose-955 bg-rose-950/30 text-rose-400 px-2 py-0.5 rounded-full font-bold text-[9px] border border-rose-900/40">
                     <X size={10} className="stroke-[3.5]" />
                     Sent to AI History
                   </div>
                 </div>
-                <div className="text-zinc-650 font-bold select-none text-zinc-550 break-all">
+                <div className="text-zinc-500 font-bold select-none break-all">
                   sk_live_abc123...
                 </div>
 
                 <div className="flex items-center justify-between pt-3 pb-2.5 border-b border-zinc-900">
                   <span className="text-emerald-400 font-extrabold">GOOD</span>
-                  <div className="flex items-center gap-1 bg-emerald-950/30 text-emerald-455 px-2 py-0.5 rounded-full font-bold text-[9px] border border-emerald-900/40">
+                  <div className="flex items-center gap-1 bg-emerald-950/30 text-emerald-400 px-2 py-0.5 rounded-full font-bold text-[9px] border border-emerald-900/40">
                     <Check size={10} className="stroke-[3.5]" />
                     Non-reversible
                   </div>
@@ -667,13 +767,13 @@ export default function Home() {
           </div>
 
           {/* Card B: Machine Readable Reports */}
-          <div className="bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 shadow-2xl flex flex-col justify-between backdrop-blur-md group hover:border-zinc-800 transition-colors duration-300">
+          <div className="bg-zinc-955 bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 shadow-2xl flex flex-col justify-between backdrop-blur-md group hover:border-zinc-800 transition-colors duration-300">
             <div className="space-y-5">
               <h4 className="text-lg font-bold text-white">Machine Readable Reports</h4>
               
               {/* JSON code box */}
               <div className="border border-zinc-900 rounded-xl p-4 bg-zinc-950/60 text-zinc-300 font-mono text-[11px] leading-relaxed overflow-x-auto shadow-inner">
-                <span className="text-zinc-600">{`{`}</span>
+                <span className="text-zinc-650 text-zinc-600">{`{`}</span>
                 <div className="pl-4">
                   <span className="text-indigo-400 font-semibold">"secretName"</span>: <span className="text-emerald-400 font-semibold">"STRIPE_SECRET_KEY"</span>,
                   <br />
@@ -700,7 +800,7 @@ export default function Home() {
           </div>
 
           {/* Card C: Quick Setup */}
-          <div className="bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 shadow-2xl flex flex-col justify-between backdrop-blur-md group hover:border-zinc-800 transition-colors duration-300">
+          <div className="bg-zinc-955 bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 shadow-2xl flex flex-col justify-between backdrop-blur-md group hover:border-zinc-800 transition-colors duration-300">
             <div className="space-y-5">
               <h4 className="text-lg font-bold text-white">Installation</h4>
               
@@ -716,7 +816,7 @@ export default function Home() {
                     <span className="truncate select-all">npm install -g envtrap</span>
                     <button
                       onClick={() => copyToClipboard("npm install -g envtrap", setCopiedInstall)}
-                      className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                      className="text-zinc-500 hover:text-zinc-350 transition-colors cursor-pointer"
                       aria-label="Copy install command"
                     >
                       {copiedInstall ? <Check size={12} className="text-emerald-500 stroke-[3]" /> : <Copy size={12} />}
@@ -730,11 +830,11 @@ export default function Home() {
                     <span className="w-3.5 h-3.5 rounded-full bg-indigo-950 border border-indigo-900/40 flex items-center justify-center text-[9px]">2</span>
                     <span>Start application</span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 bg-zinc-950/60 border border-zinc-900 rounded-xl px-3.5 py-2.5 font-mono text-[11px] text-zinc-355 text-zinc-300 shadow-inner group/btn">
+                  <div className="flex items-center justify-between gap-2 bg-zinc-950/60 border border-zinc-900 rounded-xl px-3.5 py-2.5 font-mono text-[11px] text-zinc-300 shadow-inner group/btn">
                     <span className="truncate select-all">envtrap run node app.js</span>
                     <button
                       onClick={() => copyToClipboard("envtrap run node app.js", setCopiedRun)}
-                      className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                      className="text-zinc-500 hover:text-zinc-350 transition-colors cursor-pointer"
                       aria-label="Copy run command"
                     >
                       {copiedRun ? <Check size={12} className="text-emerald-500 stroke-[3]" /> : <Copy size={12} />}
@@ -842,7 +942,7 @@ export default function Home() {
               </a>
               <a
                 href="#docs"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-800 text-zinc-300 font-extrabold text-sm px-6 py-3.5 rounded-full backdrop-blur-sm transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-805 border-zinc-800 text-zinc-300 font-extrabold text-sm px-6 py-3.5 rounded-full backdrop-blur-sm transition-all"
               >
                 <BookOpen size={16} />
                 Read Documentation
@@ -902,7 +1002,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-[10px] font-bold text-zinc-550 text-zinc-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-[10px] font-bold text-zinc-500">
             <span>© {new Date().getFullYear()} envtrap. All rights reserved.</span>
             <div className="flex items-center gap-6">
               <a href="#" className="hover:text-zinc-300 transition-colors">Status</a>
@@ -932,9 +1032,9 @@ function AttackSurfaceRow({
   statusType: "danger" | "warning";
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-3.5 border-b border-zinc-900 last:border-b-0 group">
+    <div className="attack-surface-row-anim flex items-center justify-between gap-4 py-3.5 border-b border-zinc-900 last:border-b-0 group">
       <div className="flex gap-4">
-        <span className="font-mono text-[10px] font-extrabold text-zinc-600 pt-0.5 select-none">{num}</span>
+        <span className="font-mono text-[10px] font-extrabold text-zinc-650 text-zinc-600 pt-0.5 select-none">{num}</span>
         <div className="space-y-0.5">
           <h5 className="text-xs font-bold text-zinc-200 group-hover:text-indigo-400 transition-colors">
             {title}
@@ -948,8 +1048,8 @@ function AttackSurfaceRow({
       <span
         className={`text-[9px] font-black tracking-widest shrink-0 uppercase px-2 py-0.5 rounded border ${
           statusType === "danger"
-            ? "bg-rose-950/40 text-rose-450 border-rose-900/30"
-            : "bg-amber-950/40 text-amber-450 border-amber-900/30"
+            ? "bg-rose-950/40 text-rose-400 border-rose-900/30"
+            : "bg-amber-950/40 text-amber-400 border-amber-900/30"
         }`}
       >
         {status}
@@ -996,7 +1096,7 @@ function WorkStepCard({
   desc: string;
 }) {
   return (
-    <div className="relative bg-zinc-950/40 border border-zinc-900 rounded-2xl p-5 shadow-inner text-left flex flex-col justify-between group overflow-hidden hover:border-zinc-800 transition-colors duration-300">
+    <div className="step-card-anim relative bg-zinc-950/40 border border-zinc-900 rounded-2xl p-5 shadow-inner text-left flex flex-col justify-between group overflow-hidden hover:border-zinc-800 transition-colors duration-300">
       {/* Subtle indicator for order */}
       <span className="absolute -right-3 -top-3 text-5xl font-black text-zinc-900 select-none group-hover:text-indigo-500/5 transition-colors">
         {stepNum}
