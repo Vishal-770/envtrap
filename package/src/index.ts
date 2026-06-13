@@ -229,11 +229,21 @@ async function runCommand(
   //       This catches OS-level writes from native C++ addons.
 
   child.stdout?.on('data', (chunk: Buffer) => {
-    const str = chunk.toString('utf-8');
-    // Scan BEFORE writing — but don't block the write on scan results
+    let str = chunk.toString('utf-8');
+    // Scan BEFORE writing
     scan(str, 'stdout');
-    // Pass through immediately so users still see program output
-    process.stdout.write(chunk);
+    
+    // Redact loaded secrets in the stdout stream
+    for (const secret of secrets) {
+      if (str.includes(secret.value)) {
+        const hash = getSha256(secret.value).slice(0, 8);
+        const redactedVal = `[REDACTED: SHA256:${hash}]`;
+        str = str.split(secret.value).join(redactedVal);
+      }
+    }
+    
+    // Pass through redacted string to terminal
+    process.stdout.write(str);
   });
 
   let stderrRemainder = '';
@@ -253,7 +263,16 @@ async function runCommand(
       } else {
         // Normal stderr: scan and pass through
         scan(line, 'stderr');
-        process.stderr.write(line + '\n');
+        
+        let redactedLine = line;
+        for (const secret of secrets) {
+          if (redactedLine.includes(secret.value)) {
+            const hash = getSha256(secret.value).slice(0, 8);
+            const redactedVal = `[REDACTED: SHA256:${hash}]`;
+            redactedLine = redactedLine.split(secret.value).join(redactedVal);
+          }
+        }
+        process.stderr.write(redactedLine + '\n');
       }
     }
   });
@@ -268,7 +287,16 @@ async function runCommand(
         handleDnsWarning(stderrRemainder);
       } else {
         scan(stderrRemainder, 'stderr');
-        process.stderr.write(stderrRemainder);
+        
+        let redactedRemainder = stderrRemainder;
+        for (const secret of secrets) {
+          if (redactedRemainder.includes(secret.value)) {
+            const hash = getSha256(secret.value).slice(0, 8);
+            const redactedVal = `[REDACTED: SHA256:${hash}]`;
+            redactedRemainder = redactedRemainder.split(secret.value).join(redactedVal);
+          }
+        }
+        process.stderr.write(redactedRemainder);
       }
     }
   });
