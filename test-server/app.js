@@ -106,6 +106,16 @@ app.get("/leak-subprocess", (req, res) => {
   }
 });
 
+// 5. Clean Shutdown Endpoint
+app.get("/shutdown", (req, res) => {
+  res.json({ status: "Shutting down..." });
+  // Allow response to send before exiting
+  setTimeout(() => {
+    console.log("Clean shutdown triggered via endpoint.");
+    process.exit(0);
+  }, 100);
+});
+
 app.listen(PORT, () => {
   console.log(`Server started on http://localhost:${PORT}`);
   console.log(`Run 'npm run secure' to test with envtrap protection.`);

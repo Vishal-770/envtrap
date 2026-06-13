@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node app.js",
-    "secure": "envtrap run node app.js"
+    "secure": "envtrap run node app.js",
+    "test": "node test/integration.test.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
