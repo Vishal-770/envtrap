@@ -9,157 +9,74 @@ A **channel** in envtrap represents a specific data-exfiltration path that can c
 
 ## Channel Configuration Format
 
-Each channel can be configured as:
+Each channel can be configured with one of the following enforcement modes:
 
-**Boolean shorthand** (enable/disable with default settings):
-```json
-{ "channels": { "https": true } }
-```
-
-**Object** (full per-channel configuration):
-```json
-{
-  "channels": {
-    "https": {
-      "enabled": true,
-      "mode": "block"
-    }
-  }
-}
-```
-
----
-
-## HTTPS Channel
-
-Intercepts all outbound `http` and `https` requests.
+- `"block"`: If a leak is detected, the operation is prevented or blocked (and stdout/stderr kills the process).
+- `"warn"`: If a leak is detected, it is logged (and stdout/stderr outputs are redacted), but the operation proceeds.
+- `"off"`: Monitoring on this channel is disabled.
 
 ```json
 {
   "channels": {
-    "https": {
-      "enabled": true,
-      "mode": "block",
-      "inspectBody": true,
-      "inspectHeaders": true,
-      "allowedDomains": ["api.stripe.com", "api.openai.com"]
-    }
+    "stdout": "warn",
+    "stderr": "warn",
+    "network": "block",
+    "child_process": "warn",
+    "dns": "block"
   }
 }
 ```
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | `boolean` | `true` | Enable/disable HTTPS interception |
-| `mode` | `"block" \| "warn"` | global `mode` | Per-channel enforcement mode |
-| `inspectBody` | `boolean` | `true` | Scan request body for secrets |
-| `inspectHeaders` | `boolean` | `true` | Scan request headers for secrets |
-| `allowedDomains` | `string[]` | `[]` | Domains to skip inspection for |
-
----
-
-## Subprocess Channel
-
-Intercepts all child process creation calls (`exec`, `spawn`, `fork`, etc.).
-
-```json
-{
-  "channels": {
-    "subprocess": {
-      "enabled": true,
-      "mode": "block",
-      "allowList": ["git", "node", "npm", "pnpm", "tsc"]
-    }
-  }
-}
-```
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | `boolean` | `true` | Enable/disable subprocess monitoring |
-| `mode` | `"block" \| "warn"` | global `mode` | Per-channel enforcement mode |
-| `allowList` | `string[]` | `[]` | Command name prefixes to allow without inspection |
-
-<Warning>
-  If `allowList` is empty, all subprocess commands are inspected and those carrying secrets are blocked. Add your legitimate commands to prevent false positives.
-</Warning>
-
----
-
-## DNS Channel
-
-Intercepts DNS resolver queries to detect tunneling exfiltration.
-
-```json
-{
-  "channels": {
-    "dns": {
-      "enabled": true,
-      "mode": "block",
-      "maxLabelLength": 40,
-      "entropyThreshold": 4.5
-    }
-  }
-}
-```
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | `boolean` | `true` | Enable/disable DNS monitoring |
-| `mode` | `"block" \| "warn"` | global `mode` | Per-channel enforcement mode |
-| `maxLabelLength` | `number` | `40` | Max length of a DNS label before flagging |
-| `entropyThreshold` | `number` | `4.5` | Entropy threshold for DNS labels |
 
 ---
 
 ## stdout Channel
 
-Intercepts writes to `process.stdout` and `process.stderr`.
+Intercepts writes to standard output (`process.stdout`).
 
-```json
-{
-  "channels": {
-    "stdout": {
-      "enabled": true,
-      "mode": "warn",
-      "redact": true
-    }
-  }
-}
-```
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | `boolean` | `true` | Enable/disable stdout scanning |
-| `mode` | `"block" \| "warn"` | global `mode` | Per-channel enforcement mode |
-| `redact` | `boolean` | `true` | Replace matched secrets with `[REDACTED:ENVTRAP]` |
-
-<Note>
-  When `mode` is `"block"` on the stdout channel, the write is dropped entirely. Use `"warn"` with `redact: true` to allow logs through with secrets scrubbed.
-</Note>
+- **`"block"`**: If a loaded secret is detected, it terminates the process with exit code `1` immediately.
+- **`"warn"`** (Default): If a loaded secret is detected, it redacts it to `[REDACTED: SHA256:<hash>]` on stdout and logs a warning.
+- **`"off"`**: Completely disables interception on `stdout`.
 
 ---
 
-## Entropy Channel
+## stderr Channel
 
-Cross-channel entropy analysis applied to all intercepted data.
+Intercepts writes to standard error (`process.stderr`).
 
-```json
-{
-  "channels": {
-    "entropy": {
-      "enabled": true,
-      "threshold": 5.0,
-      "minLength": 16,
-      "mode": "warn"
-    }
-  }
-}
-```
+- **`"block"`**: If a loaded secret is detected, it terminates the process with exit code `1` immediately.
+- **`"warn"`** (Default): If a loaded secret is detected, it redacts it to `[REDACTED: SHA256:<hash>]` on stderr and logs a warning.
+- **`"off"`**: Completely disables interception on `stderr`.
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | `boolean` | `true` | Enable/disable entropy detection |
-| `threshold` | `number` | `5.0` | Shannon entropy score cutoff |
-| `minLength` | `number` | `16` | Minimum string length to evaluate |
-| `mode` | `"block" \| "warn"` | `"warn"` | Enforcement for entropy-only matches |
+---
+
+## network Channel
+
+Intercepts outbound TCP network traffic, running a local HTTP/HTTPS MITM proxy on `127.0.0.1`.
+
+- **`"block"`** (Default): If a loaded secret is found in request headers, URL, or body, the connection is terminated and a `403 Forbidden` response is returned to the app.
+- **`"warn"`**: If a secret is found, logs the leak, but forwards the request to the upstream target.
+- **`"off"`**: Disables the proxy completely.
+
+You can allow specific domains to bypass proxy checks using `exclusions.domains`.
+
+---
+
+## child_process Channel
+
+Intercepts subprocess creation (`exec`, `spawn`, `fork`, etc.).
+
+- **`"block"`**: Spawning is blocked and a synchronous error is thrown if the environment variables (`options.env`) passed to the child contain an active secret.
+- **`"warn"`** (Default): Logs the subprocess creation leak warning and allows spawning.
+- **`"off"`**: Disables environment checks on subprocesses.
+
+---
+
+## dns Channel
+
+Intercepts hostname resolutions via `node:dns`.
+
+- **`"block"`** (Default): Resolving a hostname that contains a loaded secret will fail the lookup immediately.
+- **`"warn"`**: Logs the DNS leak but permits lookup resolution.
+- **`"off"`**: Disables DNS monitoring.
+
+*Note: High-entropy DNS subdomains are scanned as potential DNS tunneling exfiltrations and warn the user regardless of exact secret content.*

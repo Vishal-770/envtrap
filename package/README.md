@@ -80,32 +80,87 @@ envtrap run --no-mitm node app.js
 envtrap run --verbose node app.js
 ```
 
+## Configuration
+
+For fine-grained control, create an `envtrap.json` in your project root. All fields are optional:
+
+```json
+{
+  "channels": {
+    "stdout": "warn",
+    "stderr": "warn",
+    "network": "block",
+    "child_process": "warn",
+    "dns": "block"
+  },
+  "exclusions": {
+    "domains": ["api.stripe.com", "api.openai.com"],
+    "paths": ["test/**", "**/__tests__/**"]
+  },
+  "entropy": {
+    "threshold": 3.5,
+    "minLength": 12
+  },
+  "quiet": false,
+  "logFile": "envtrap.log"
+}
+```
+
+### Configuration Options
+
+* **`channels`**: Set the security enforcement mode for each channel to `"block"`, `"warn"`, or `"off"`:
+  * `stdout` / `stderr`: Stream writes. Detections redact the secret in real-time. In `"block"` mode, the process is terminated.
+  * `network`: Outbound HTTPS/HTTP requests. In `"block"` mode, requests are terminated via the local MITM proxy.
+  * `child_process`: Subprocess execution. In `"block"` mode, spawning is blocked if a secret is present in the environment variables.
+  * `dns`: Hostname resolution. In `"block"` mode, queries are terminated.
+* **`exclusions.domains`**: List of fully-qualified domain names to exclude from HTTPS/HTTP scanning.
+* **`exclusions.paths`**: List of glob patterns to exclude source files (e.g. tests or build scripts) from triggering warnings/blocks.
+* **`entropy`**: Customize Shannon entropy settings:
+  * `threshold` (default `3.5`): Minimum entropy score (randomness) to flag a secret candidate.
+  * `minLength` (default `12`): Minimum length to evaluate strings for entropy.
+* **`quiet`** (default `false`): Suppress startup banners and leak alerts, outputting only final summary metrics.
+* **`logFile`** (default `null`): Path to write structured JSONL events.
+
+### Configuration Check
+
+Validate your `envtrap.json` structure using the validation command:
+
+```bash
+envtrap check
+```
+
+---
+
 ## Scanning and Detection Policies
 
-Detection relies on a dual-gate scanner:
+envtrap intercepts the exfiltration of your application's active secrets. It works by loading secrets from the environment variables (excluding common non-sensitive OS environment variables like `PATH`) and `.env` files.
 
-1. **Shannon Entropy**: Evaluates character randomness. Generic secrets are detected if they satisfy the following criteria:
-   * **Entropy**: 3.5 or higher
-   * **Length**: 12 characters or longer
-2. **Pattern Matching**: Bypasses entropy limits for common token formats:
-   * **Stripe**: `sk_(live|test)_[a-zA-Z0-9]{24,}`
-   * **AWS Access Key ID**: `AKIA[0-9A-Z]{16}`
-   * **GitHub PAT**: `ghp_[a-zA-Z0-9]{36}`
-   * **Slack Bot Token**: `xoxb-[0-9]{11,13}-[0-9]{11,13}-[a-zA-Z0-9]{24}`
-   * **SendGrid API Key**: `SG\.[a-zA-Z0-9\-_]{22}\.[a-zA-Z0-9\-_]{43}`
+On startup, loaded secrets are filtered using a validation gate: if they match a known pattern (e.g., Stripe, AWS, or GitHub keys) or meet the configured minimum length and entropy thresholds, they are registered in memory for active runtime scanning.
+
+Any outbound traffic or streams are scanned for exact matches of these registered secrets.
+
+### Built-in Token Formats
+
+* **Stripe**: `sk_(live|test)_[a-zA-Z0-9]{24,}`
+* **AWS Access Key ID**: `AKIA[0-9A-Z]{16}`
+* **GitHub Personal Access Token**: `ghp_[a-zA-Z0-9]{36}`
+* **Generic Bearer Token**: `Bearer\s+[a-zA-Z0-9\-._~+/]{20,}`
+* **SendGrid API Key**: `SG\.[a-zA-Z0-9\-_]{22}\.[a-zA-Z0-9\-_]{43}`
+* **Slack Bot Token**: `xoxb-[0-9]{11,13}-[0-9]{11,13}-[a-zA-Z0-9]{24}`
 
 ### AI-Safe Redaction
-To prevent exposed secrets from entering LLM context histories (when running tests or applications via AI coding tools), envtrap redacts console and log outputs:
-* Secrets are masked using their SHA-256 hash: `[SHA256:e4b4eee7d4a4...]`.
-* Leaked secrets are documented in `.envtrap-report.json` in the current working directory for machine parsing.
+
+To prevent exposed secrets from entering LLM context histories or being leaked to log streams, envtrap redacts outputs:
+* Secrets in streams are masked with their SHA-256 hash prefix: `[REDACTED: SHA256:e4b4eee7]`.
+* Leaks are logged to `.envtrap-report.json` in the current working directory.
 
 ```json
 [
   {
     "secretName": "STRIPE_SECRET_KEY",
     "source": "file",
-    "channel": "dns",
-    "context": "[REDACTED: SHA256:e4b4eee7].attacker.com",
+    "channel": "network",
+    "context": "Outbound HTTPS Request Audited:\n  Destination Host: api.stripe.com\n...",
     "sha256": "e4b4eee7d4a40e4ea77952754c76acd3338147b3f2888e82d57f5b9ccd7c6153",
     "timestamp": 1781335024545
   }

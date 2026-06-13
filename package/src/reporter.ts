@@ -3,6 +3,8 @@
 // Formats leak alerts and end-of-run summaries with rich ANSI colors.
 
 import chalk from 'chalk';
+import * as fs from 'fs';
+import * as path from 'path';
 import { getSha256 } from './fingerprint.js';
 import type { LeakEvent } from './types.js';
 
@@ -20,6 +22,21 @@ const CHANNEL_META: Record<
   child_process: { icon: '🔀', label: 'CHILD PROC', color: chalk.cyan },
   dns: { icon: '📡', label: 'DNS', color: chalk.blue },
 };
+
+// ---------------------------------------------------------------------------
+// Module state
+// ---------------------------------------------------------------------------
+
+let isQuiet = false;
+let currentLogFile: string | null = null;
+
+export function setQuiet(quiet: boolean): void {
+  isQuiet = quiet;
+}
+
+export function setLogFile(filePath: string | null): void {
+  currentLogFile = filePath;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,6 +61,7 @@ function divider(char = '─', width = 60): string {
  * Prints a styled header banner when envtrap starts.
  */
 export function printBanner(command: string): void {
+  if (isQuiet) return;
   console.error('');
   console.error(chalk.bgRed.white.bold(' ⚠  envtrap v2.0  '));
   console.error(chalk.gray(`   Monitoring: ${chalk.white(command)}`));
@@ -61,6 +79,29 @@ export function printBanner(command: string): void {
  * Uses stderr so that stdout pass-through remains clean.
  */
 export function flag(event: LeakEvent): void {
+  // Append to structured log file if configured
+  if (currentLogFile) {
+    try {
+      const dir = path.dirname(currentLogFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const logLine = JSON.stringify({
+        secretName: event.secret.name,
+        source: event.secret.source,
+        channel: event.channel,
+        context: event.context,
+        sha256: getSha256(event.secret.value),
+        timestamp: event.timestamp,
+      }) + '\n';
+      fs.appendFileSync(currentLogFile, logLine, 'utf-8');
+    } catch (err) {
+      // Fail silently for log file write
+    }
+  }
+
+  if (isQuiet) return;
+
   const meta = CHANNEL_META[event.channel];
   const ts = new Date(event.timestamp).toISOString();
 
@@ -145,6 +186,7 @@ export function summary(events: LeakEvent[]): void {
  * Prints a non-fatal warning (e.g. proxy upstream failure, scan skip).
  */
 export function warn(message: string): void {
+  if (isQuiet) return;
   console.error(chalk.yellow(`  ⚠  [envtrap] ${message}`));
 }
 
@@ -152,5 +194,6 @@ export function warn(message: string): void {
  * Prints a debug/info line (suppressed in non-verbose mode by caller).
  */
 export function info(message: string): void {
+  if (isQuiet) return;
   console.error(chalk.gray(`  ℹ  [envtrap] ${message}`));
 }

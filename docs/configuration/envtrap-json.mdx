@@ -9,30 +9,23 @@ Create an `envtrap.json` file in your project root to customize envtrap's behavi
 
 ```json
 {
-  "mode": "block",
   "channels": {
-    "https": true,
-    "subprocess": true,
-    "dns": true,
-    "stdout": true,
-    "entropy": true
-  },
-  "entropy": {
-    "enabled": true,
-    "threshold": 5.0,
-    "minLength": 16
+    "stdout": "warn",
+    "stderr": "warn",
+    "network": "block",
+    "child_process": "warn",
+    "dns": "block"
   },
   "exclusions": {
-    "domains": [],
-    "envVars": [],
-    "patterns": []
+    "domains": ["api.stripe.com"],
+    "paths": ["test/**", "**/__tests__/**"]
   },
-  "patterns": [],
-  "logging": {
-    "level": "info",
-    "format": "pretty",
-    "file": null
-  }
+  "entropy": {
+    "threshold": 3.5,
+    "minLength": 12
+  },
+  "quiet": false,
+  "logFile": "envtrap.log"
 }
 ```
 
@@ -40,160 +33,99 @@ Create an `envtrap.json` file in your project root to customize envtrap's behavi
 
 ## Top-Level Options
 
-### `mode`
+### `channels`
 
-**Type**: `"block" | "warn"`  
-**Default**: `"block"`
+**Type**: `object`
 
-Controls the global enforcement mode:
+Defines the enforcement mode for each runtime interception channel. Each key must be set to one of `"block"`, `"warn"`, or `"off"`:
 
-- `"block"` — Detected secrets cause the operation to be terminated
-- `"warn"` — Detected secrets are logged but the operation is allowed to proceed
-
-<Tip>
-  Use `"warn"` during initial rollout to understand your app's traffic patterns before enforcing blocks.
-</Tip>
-
-```json
-{ "mode": "warn" }
-```
-
----
-
-## `channels`
-
-Enable or disable individual interception channels:
-
-```json
-{
-  "channels": {
-    "https": true,
-    "subprocess": true,
-    "dns": true,
-    "stdout": true,
-    "entropy": true
-  }
-}
-```
+- `"block"` — Detected secrets block/terminate the action (and for stdout/stderr, kill the child process).
+- `"warn"` — Detected secrets are logged, and stdout/stderr streams are redacted, but the execution continues.
+- `"off"` — Monitoring on this channel is disabled completely.
 
 | Channel | Default | Description |
 |---|---|---|
-| `https` | `true` | Intercept all outbound HTTP/S requests |
-| `subprocess` | `true` | Monitor child process spawning |
-| `dns` | `true` | Intercept DNS resolver queries |
-| `stdout` | `true` | Scan stdout and stderr writes |
-| `entropy` | `true` | Enable entropy-based detection |
-
-Each channel also supports a **channel-level mode** object for per-channel overrides:
+| `stdout` | `"warn"` | Scans writes to standard output stream. Redacts secrets on match. |
+| `stderr` | `"warn"` | Scans writes to standard error stream. Redacts secrets on match. |
+| `network` | `"block"` | Runs the local MITM proxy to decrypt and scan outbound HTTP/HTTPS request bodies and headers. |
+| `child_process` | `"warn"` | Intercepts spawn/exec commands and blocks/warns if active secrets are passed inside the subprocess environment variables (`options.env`). |
+| `dns` | `"block"` | Intercepts `node:dns` queries to block lookups containing loaded secrets, or warn on high-entropy subdomains. |
 
 ```json
 {
   "channels": {
-    "subprocess": {
-      "mode": "warn",
-      "allowList": ["git", "node", "npm", "pnpm"]
-    }
+    "network": "block",
+    "stdout": "warn"
   }
 }
 ```
 
 ---
 
-## `entropy`
+### `exclusions`
 
-Configure Shannon entropy analysis:
+**Type**: `object`
 
-```json
-{
-  "entropy": {
-    "enabled": true,
-    "threshold": 5.0,
-    "minLength": 16
-  }
-}
-```
+Exclude specific network destinations or file paths from checks to prevent false positives.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | `boolean` | `true` | Toggle entropy analysis |
-| `threshold` | `number` | `5.0` | Entropy score threshold (0–8) |
-| `minLength` | `number` | `16` | Minimum string length to evaluate |
-
----
-
-## `exclusions`
-
-Allowlist specific domains, environment variable names, or regex patterns to prevent false positives:
+| `domains` | `string[]` | `[]` | Fully qualified domain names (FQDNs) to skip from proxy and network checks (e.g. `["api.stripe.com"]`). |
+| `paths` | `string[]` | `[]` | Glob patterns of source files to exclude from stack checks. Intercepted events originating from these paths are ignored. |
 
 ```json
 {
   "exclusions": {
-    "domains": ["api.stripe.com", "api.openai.com", "sentry.io"],
-    "envVars": ["NODE_ENV", "PORT", "HOST"],
-    "patterns": ["^Bearer test_"]
+    "domains": ["api.stripe.com"],
+    "paths": ["test/**", "*.test.js"]
   }
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `domains` | `string[]` | Fully qualified domains to allow without inspection |
-| `envVars` | `string[]` | Environment variable names to exclude from scanning |
-| `patterns` | `string[]` | Regex patterns that, if matched, suppress a detection |
-
 ---
 
-## `patterns`
+### `entropy`
 
-Add custom secret patterns beyond the built-in library:
+**Type**: `object`
 
-```json
-{
-  "patterns": [
-    {
-      "name": "Internal API Key",
-      "regex": "myco_[a-zA-Z0-9]{32}",
-      "severity": "block"
-    },
-    {
-      "name": "Internal JWT",
-      "regex": "eyJpbnQ[A-Za-z0-9-_]+",
-      "severity": "warn"
-    }
-  ]
-}
-```
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `name` | `string` | Yes | Human-readable name for this pattern |
-| `regex` | `string` | Yes | JavaScript-compatible regex string |
-| `severity` | `"block" \| "warn"` | No | Override global mode for this pattern |
-
----
-
-## `logging`
-
-Configure how envtrap emits detection events:
-
-```json
-{
-  "logging": {
-    "level": "info",
-    "format": "pretty",
-    "file": "/var/log/envtrap.log"
-  }
-}
-```
+Configure the Shannon entropy detector which screens environment variables on startup.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `level` | `"debug" \| "info" \| "warn" \| "error"` | `"info"` | Minimum log level |
-| `format` | `"pretty" \| "json"` | `"pretty"` | Log output format |
-| `file` | `string \| null` | `null` | Optional file path for log output |
-
-Use `"json"` format in production to feed logs into your SIEM or log aggregator:
+| `threshold` | `number` | `3.5` | Minimum Shannon entropy score (0 to 8) a string must have to be considered a secret. |
+| `minLength` | `number` | `12` | Minimum character length for entropy scanning. |
 
 ```json
-{ "logging": { "format": "json", "file": "/var/log/envtrap.log" } }
+{
+  "entropy": {
+    "threshold": 3.5,
+    "minLength": 12
+  }
+}
+```
+
+---
+
+### `quiet`
+
+**Type**: `boolean`  
+**Default**: `false`
+
+If set to `true`, suppresses the envtrap startup banner and real-time console alerts. Only prints the final summary of exfiltrations upon process exit.
+
+```json
+{ "quiet": true }
+```
+
+---
+
+### `logFile`
+
+**Type**: `string | null`  
+**Default**: `null`
+
+Optional path relative to the current working directory (or absolute path) to write structured JSONL events as leaks are detected.
+
+```json
+{ "logFile": "logs/envtrap-events.jsonl" }
 ```

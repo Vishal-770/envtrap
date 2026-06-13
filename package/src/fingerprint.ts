@@ -75,17 +75,12 @@ export function shannonEntropy(str: string): number {
 // Primary Analysis Function
 // ---------------------------------------------------------------------------
 
-/** Minimum string length to consider for entropy-based detection */
-const MIN_SECRET_LENGTH = 12;
-/** Minimum entropy score to treat a value as a potential secret */
-const MIN_ENTROPY_SCORE = 3.5;
-
 /**
  * Tests whether a string value looks like a secret.
  * Returns true if the value should be considered a secret candidate.
  */
-export function looksLikeSecret(value: string): boolean {
-  if (value.length < MIN_SECRET_LENGTH) return false;
+export function looksLikeSecret(value: string, minLength = 12, minEntropy = 3.5): boolean {
+  if (value.length < minLength) return false;
 
   // Deterministic regex always wins
   for (const { pattern } of DETERMINISTIC_PATTERNS) {
@@ -93,7 +88,7 @@ export function looksLikeSecret(value: string): boolean {
   }
 
   // Entropy gate
-  return shannonEntropy(value) >= MIN_ENTROPY_SCORE;
+  return shannonEntropy(value) >= minEntropy;
 }
 
 /**
@@ -103,7 +98,7 @@ export function looksLikeSecret(value: string): boolean {
  * @param secrets  - The list of loaded secrets to search for
  * @returns        Array of secret names found in the content
  */
-export function scanContent(content: string, secrets: Secret[]): string[] {
+export function scanContent(content: string, secrets: Secret[], minLength = 12, minEntropy = 3.5): string[] {
   if (!content || content.length === 0) return [];
 
   const found: string[] = [];
@@ -112,7 +107,7 @@ export function scanContent(content: string, secrets: Secret[]): string[] {
     const { name, value } = secret;
 
     // Skip trivially short / low-entropy values to avoid false positives
-    if (!looksLikeSecret(value)) continue;
+    if (!looksLikeSecret(value, minLength, minEntropy)) continue;
 
     if (content.includes(value)) {
       found.push(name);

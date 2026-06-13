@@ -1,17 +1,6 @@
 #!/usr/bin/env node
 // src/index.ts
 // CLI Orchestrator & Process Spawner
-//
-// Boot sequence:
-//   1. Parse CLI args (commander)
-//   2. Load secrets from process.env + .env
-//   3. Init Root CA (node-forge, in-memory private key)
-//   4. Start MITM proxy (random port on 127.0.0.1)
-//   5. Construct child environment with injected proxy + CA + ESM hook
-//   6. Spawn child with stdio: ['inherit', 'pipe', 'pipe']
-//   7. Pipe child stdout/stderr through scanner → pass-through to terminal
-//   8. Listen for IPC messages from child process ESM hook
-//   9. On child exit, print summary and exit with same code
 
 import { Command } from 'commander';
 import * as dotenv from 'dotenv';
@@ -20,22 +9,16 @@ import * as fs from 'fs';
 import { spawn } from 'child_process';
 import { initCA, injectSystemCA, removeSystemCA } from './ca.js';
 import { startProxy } from './proxy.js';
-import { setSecrets, scan, checkChildEnv, getAllEvents } from './scanner.js';
-import { printBanner, summary, info, warn } from './reporter.js';
+import { setSecrets, setConfig, scan, checkChildEnv, getAllEvents } from './scanner.js';
+import { printBanner, summary, info, warn, setQuiet, setLogFile } from './reporter.js';
 import { looksLikeSecret, getSha256 } from './fingerprint.js';
 import type { Secret } from './types.js';
+import { loadConfig } from './config.js';
 
 // ---------------------------------------------------------------------------
 // Secret Loading
 // ---------------------------------------------------------------------------
 
-/**
- * Loads secrets from two sources:
- *   1. The current process.env (already set in the shell)
- *   2. A .env file (parsed via dotenv, NOT set into process.env globally)
- *
- * Secrets with trivially short/empty values are excluded.
- */
 const SYSTEM_ENV_BLOCKLIST = new Set([
   'PATH', 'HOME', 'USER', 'SHELL', 'PWD', 'LANG', 'TERM', 'SHLVL', 'LOGNAME',
   'MAIL', 'HOSTNAME', 'HISTCONTROL', 'LESSOPEN', 'LESSCLOSE', '_',
@@ -57,25 +40,26 @@ const SYSTEM_ENV_BLOCKLIST = new Set([
   'AGY_BROWSER_ACTIVE_PORT_FILE', 'CHROME_DEVTOOLS_MCP_JS'
 ]);
 
-function loadSecrets(envFilePath?: string): Secret[] {
+function loadSecrets(envFilePath?: string, minLength = 12, minEntropy = 3.5): Secret[] {
   const secrets: Secret[] = [];
   const seenValues = new Set<string>();
 
   // Source 1: process.env
   for (const [name, value] of Object.entries(process.env)) {
     if (SYSTEM_ENV_BLOCKLIST.has(name)) continue;
-    if (value && value.length >= 8 && looksLikeSecret(value)) {
+    if (value && value.length >= 8 && looksLikeSecret(value, minLength, minEntropy)) {
       secrets.push({ name, value, source: 'env' });
       seenValues.add(value);
     }
   }
 
-  // Source 2: .env file (dotenv parse — does NOT mutate process.env)
+  // Source 2: .env file
   const dotenvPath = envFilePath ?? path.resolve(process.cwd(), '.env');
   if (fs.existsSync(dotenvPath)) {
     const parsed = dotenv.parse(fs.readFileSync(dotenvPath));
     for (const [name, value] of Object.entries(parsed)) {
-      if (value && value.length >= 8 && !seenValues.has(value) && looksLikeSecret(value)) {
+      const alreadyLoaded = secrets.some((s) => s.name === name);
+      if (value && value.length >= 8 && !alreadyLoaded && !seenValues.has(value) && looksLikeSecret(value, minLength, minEntropy)) {
         secrets.push({ name, value, source: 'file' });
         seenValues.add(value);
       }
@@ -97,15 +81,39 @@ program
   .version('2.0.2');
 
 program
+  .command('check')
+  .description('Validate the envtrap.json configuration file')
+  .action(() => {
+    const { errors, loaded } = loadConfig(process.cwd());
+    if (!loaded) {
+      console.log('No envtrap.json configuration file found. Using default settings.');
+      process.exit(0);
+    }
+    if (errors.length > 0) {
+      console.error('Configuration Validation Failed:');
+      for (const err of errors) {
+        console.error(`  - [${err.path}] ${err.message}`);
+      }
+      process.exit(1);
+    }
+    console.log('✅ Configuration is valid.');
+    process.exit(0);
+  });
+
+program
   .command('run <command> [args...]')
   .description('Run a command under envtrap monitoring')
   .option('-e, --env-file <path>', 'Path to a custom .env file', '.env')
   .option('-v, --verbose', 'Enable verbose proxy/hook logging', false)
   .option('--no-mitm', 'Disable HTTPS MITM proxy (faster startup, no network scan)')
+  .option('--quiet', 'Suppress startup banner and leak alerts (show summary only)', false)
+  .option('--log-file <path>', 'Path to write structured JSONL events')
   .action(async (command: string, args: string[], options: {
     envFile: string;
     verbose: boolean;
     mitm: boolean;
+    quiet: boolean;
+    logFile?: string;
   }) => {
     await runCommand(command, args, options);
   });
@@ -119,61 +127,76 @@ program.parse(process.argv);
 async function runCommand(
   command: string,
   args: string[],
-  options: { envFile: string; verbose: boolean; mitm: boolean },
+  options: { envFile: string; verbose: boolean; mitm: boolean; quiet: boolean; logFile?: string },
 ): Promise<void> {
-  printBanner(`${command} ${args.join(' ')}`);
+  // --- Step 1: Load config ---
+  const { config, errors: configErrors, loaded: configLoaded } = loadConfig(process.cwd());
 
-  // --- Step 1: Load secrets ---
-  const secrets = loadSecrets(options.envFile);
-  setSecrets(secrets);
+  const quiet = options.quiet || config.quiet;
+  const logFile = options.logFile || config.logFile;
+  const verbose = options.verbose;
 
-  // Load envtrap.json config allowed domains if present
-  let allowedDomains = new Set<string>();
-  const configPath = path.resolve(process.cwd(), 'envtrap.json');
-  if (fs.existsSync(configPath)) {
-    try {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-      if (config.exclusions && Array.isArray(config.exclusions.domains)) {
-        allowedDomains = new Set(config.exclusions.domains);
-        if (options.verbose) {
-          info(`Loaded ${allowedDomains.size} allowed domains from envtrap.json`);
-        }
-      }
-    } catch (err) {
-      warn(`Failed to parse envtrap.json: ${(err as Error).message}`);
+  setQuiet(quiet);
+  setLogFile(logFile ? path.resolve(process.cwd(), logFile) : null);
+  setConfig(config);
+
+  if (configLoaded && configErrors.length > 0) {
+    warn(`Configuration file validation warnings/errors:`);
+    for (const err of configErrors) {
+      warn(`  - [${err.path}] ${err.message}`);
     }
   }
 
-  if (options.verbose) {
+  // --- Step 2: Load secrets ---
+  const secrets = loadSecrets(options.envFile, config.entropy.minLength, config.entropy.threshold);
+  setSecrets(secrets);
+
+  // --- Step 3: Transparency Logs ---
+  if (!quiet) {
+    info(`Configuration loaded: ${configLoaded ? 'envtrap.json' : 'default settings'}`);
+    info(`Active monitoring channels:`);
+    for (const [ch, mode] of Object.entries(config.channels)) {
+      info(`  - ${ch}: [${mode.toUpperCase()}]`);
+    }
+    if (config.exclusions.domains.length > 0) {
+      info(`Allowlisted domains (bypassing HTTPS scanning): ${config.exclusions.domains.join(', ')}`);
+    }
+    if (config.exclusions.paths.length > 0) {
+      info(`Path exclusions: ${config.exclusions.paths.join(', ')}`);
+    }
+  }
+
+  printBanner(`${command} ${args.join(' ')}`);
+
+  if (verbose) {
     info(`Loaded ${secrets.length} secrets from env/file sources`);
   }
 
-  // --- Step 2: Init CA + Proxy (unless --no-mitm) ---
+  // --- Step 4: Init CA + Proxy (unless --no-mitm or network: off) ---
   let proxyPort = 0;
   let caCertPath = '';
+  const mitmEnabled = options.mitm && config.channels.network !== 'off';
 
-  if (options.mitm) {
+  if (mitmEnabled) {
     const caMaterials = initCA();
     caCertPath = caMaterials.certPath;
 
-    // Temporarily inject CA into OS system trust store if root permissions exist
-    injectSystemCA(caCertPath, options.verbose);
+    // Temporarily inject CA into OS system trust store
+    injectSystemCA(caCertPath, verbose);
 
-    if (options.verbose) {
+    if (verbose) {
       info(`Root CA written to: ${caCertPath}`);
     }
 
-    proxyPort = await startProxy(options.verbose, allowedDomains);
+    proxyPort = await startProxy(verbose, config);
 
-    if (options.verbose) {
+    if (verbose) {
       info(`MITM proxy listening on 127.0.0.1:${proxyPort}`);
     }
   }
 
-  // --- Step 3: Build child environment ---
-  // Resolve hooks.mjs path: in dist/ at runtime, in src/ during development
+  // --- Step 5: Build child environment ---
   const hooksPath = resolveHooksPath();
-
   const secretNames = secrets.map((s) => s.name);
   const secretsMap: Record<string, string> = {};
   for (const s of secrets) {
@@ -182,8 +205,7 @@ async function runCommand(
 
   const childEnv: NodeJS.ProcessEnv = {
     ...process.env,
-    // Proxy injection (enables MITM for HTTPS traffic)
-    ...(options.mitm && proxyPort > 0
+    ...(mitmEnabled && proxyPort > 0
       ? {
           HTTP_PROXY: `http://127.0.0.1:${proxyPort}`,
           HTTPS_PROXY: `http://127.0.0.1:${proxyPort}`,
@@ -191,48 +213,53 @@ async function runCommand(
           https_proxy: `http://127.0.0.1:${proxyPort}`,
         }
       : {}),
-    // Trust our fake CA cert
-    ...(options.mitm && caCertPath
+    ...(mitmEnabled && caCertPath
       ? { NODE_EXTRA_CA_CERTS: caCertPath }
       : {}),
-    // ESM hook injection — wraps child_process in the spawned app
     NODE_OPTIONS: buildNodeOptions(hooksPath, process.env.NODE_OPTIONS),
-    // Pass secret names list to the hook for child_process env scanning
     __ENVTRAP_SECRET_NAMES__: JSON.stringify(secretNames),
-    // Pass the full secrets map to prevent evasion via env clearing and secure DNS checks
     __ENVTRAP_SECRETS_MAP__: JSON.stringify(secretsMap),
+    __ENVTRAP_CONFIG_MODES__: JSON.stringify(config.channels),
+    __ENVTRAP_PATH_EXCLUSIONS__: JSON.stringify(config.exclusions.paths),
+    __ENVTRAP_ENTROPY_THRESHOLD__: String(config.entropy.threshold),
+    __ENVTRAP_ENTROPY_MIN_LENGTH__: String(config.entropy.minLength),
   };
 
-  // --- Step 4: Spawn child process with OS-level pipes ---
-  // stdio: ['inherit', 'pipe', 'pipe'] routes child stdout/stderr through
-  // OS pipes that we own — this catches native addon writes too.
+  // --- Step 6: Spawn child process ---
   const child = spawn(command, args, {
     env: childEnv,
     stdio: ['inherit', 'pipe', 'pipe'],
   });
 
-  // Local helper to match child leaks against loaded secrets list and route to scanner
+  let forceExit = false;
+
   const handleHookMessage = (str: string): void => {
     const match = /secret "([^"]+)" passed to: (.+)/.exec(str);
     if (match) {
       const secretName = match[1];
       const found = secrets.find((s) => s.name === secretName);
       if (found) {
-        checkChildEnv({ [secretName]: found.value });
+        const isBlocked = checkChildEnv({ [secretName]: found.value });
+        if (isBlocked) {
+          forceExit = true;
+          child.kill('SIGTERM');
+        }
       }
     }
   };
 
-  // Local helper to parse DNS leaks and scan the domain hostname containing the secret value
   const handleDnsMessage = (str: string): void => {
     const match = /secret "([^"]+)" found in lookup of: (.+)/.exec(str);
     if (match) {
       const specifier = match[2];
-      scan(specifier, 'dns');
+      const isBlocked = scan(specifier, 'dns');
+      if (isBlocked) {
+        forceExit = true;
+        child.kill('SIGTERM');
+      }
     }
   };
 
-  // Local helper to parse DNS high-entropy warnings
   const handleDnsWarning = (str: string): void => {
     const match = /high-entropy lookup detected: (.+)/.exec(str);
     if (match) {
@@ -241,16 +268,11 @@ async function runCommand(
     }
   };
 
-  // --- Step 5: Pipe stdout/stderr through scanner ---
-  // RULE: We attach .on('data') to the pipe streams — NOT process.stdout.write.
-  //       This catches OS-level writes from native C++ addons.
-
+  // --- Step 7: Pipe stdout/stderr through scanner ---
   child.stdout?.on('data', (chunk: Buffer) => {
     let str = chunk.toString('utf-8');
-    // Scan BEFORE writing
-    scan(str, 'stdout');
-    
-    // Redact loaded secrets in the stdout stream
+    const isBlocked = scan(str, 'stdout');
+
     for (const secret of secrets) {
       if (str.includes(secret.value)) {
         const hash = getSha256(secret.value).slice(0, 8);
@@ -258,9 +280,13 @@ async function runCommand(
         str = str.split(secret.value).join(redactedVal);
       }
     }
-    
-    // Pass through redacted string to terminal
+
     process.stdout.write(str);
+
+    if (isBlocked) {
+      forceExit = true;
+      child.kill('SIGTERM');
+    }
   });
 
   let stderrRemainder = '';
@@ -278,9 +304,8 @@ async function runCommand(
       } else if (line.includes('[envtrap] DNS warning:')) {
         handleDnsWarning(line);
       } else {
-        // Normal stderr: scan and pass through
-        scan(line, 'stderr');
-        
+        const isBlocked = scan(line, 'stderr');
+
         let redactedLine = line;
         for (const secret of secrets) {
           if (redactedLine.includes(secret.value)) {
@@ -290,6 +315,11 @@ async function runCommand(
           }
         }
         process.stderr.write(redactedLine + '\n');
+
+        if (isBlocked) {
+          forceExit = true;
+          child.kill('SIGTERM');
+        }
       }
     }
   });
@@ -303,8 +333,8 @@ async function runCommand(
       } else if (stderrRemainder.includes('[envtrap] DNS warning:')) {
         handleDnsWarning(stderrRemainder);
       } else {
-        scan(stderrRemainder, 'stderr');
-        
+        const isBlocked = scan(stderrRemainder, 'stderr');
+
         let redactedRemainder = stderrRemainder;
         for (const secret of secrets) {
           if (redactedRemainder.includes(secret.value)) {
@@ -314,16 +344,21 @@ async function runCommand(
           }
         }
         process.stderr.write(redactedRemainder);
+
+        if (isBlocked) {
+          forceExit = true;
+          child.kill('SIGTERM');
+        }
       }
     }
   });
 
-  // --- Step 6: Handle child exit ---
+  // --- Step 8: Handle child exit ---
   child.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
     const events = getAllEvents();
     summary(events);
 
-    // Save structured report for AI agents (Claude Code, Antigravity, etc.)
+    // Save structured report
     try {
       const reportPath = path.resolve(process.cwd(), '.envtrap-report.json');
       const structuredEvents = events.map((ev) => ({
@@ -335,19 +370,18 @@ async function runCommand(
         timestamp: ev.timestamp,
       }));
       fs.writeFileSync(reportPath, JSON.stringify(structuredEvents, null, 2), 'utf-8');
-      if (options.verbose) {
+      if (verbose) {
         info(`AI-Agent leak report written to: ${reportPath}`);
       }
     } catch (err) {
       warn(`Failed to write AI-Agent leak report: ${(err as Error).message}`);
     }
 
-    // Clean up system CA certificates if root was used
-    if (options.mitm && caCertPath) {
+    if (mitmEnabled && caCertPath) {
       removeSystemCA(caCertPath);
     }
 
-    const exitCode = code ?? (signal ? 1 : 0);
+    const exitCode = forceExit ? 1 : (code ?? (signal ? 1 : 0));
     process.exit(exitCode);
   });
 
@@ -357,16 +391,7 @@ async function runCommand(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Resolves the absolute path to hooks.mjs.
- * Tries dist/ first (production), falls back to src/ (development).
- */
 function resolveHooksPath(): string {
-  // __dirname is the compiled dist/ directory
   const distHooks = path.resolve(__dirname, 'hooks.mjs');
   const srcHooks = path.resolve(__dirname, '..', 'src', 'hooks.mjs');
 
@@ -378,14 +403,9 @@ function resolveHooksPath(): string {
   );
 }
 
-/**
- * Merges our --import hook into any pre-existing NODE_OPTIONS.
- * Avoids overwriting user's own NODE_OPTIONS settings.
- */
 function buildNodeOptions(hooksPath: string, existingOptions?: string): string {
   const ourFlag = `--import ${hooksPath}`;
   if (!existingOptions) return ourFlag;
-  // Don't double-inject
   if (existingOptions.includes(hooksPath)) return existingOptions;
   return `${existingOptions} ${ourFlag}`;
 }

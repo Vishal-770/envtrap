@@ -22,16 +22,11 @@ envtrap run [options] <command> [args...]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--config <path>` | `./envtrap.json` | Path to config file |
-| `--mode <mode>` | `block` | Override global mode (`block` or `warn`) |
-| `--no-https` | — | Disable HTTPS interception |
-| `--no-subprocess` | — | Disable subprocess monitoring |
-| `--no-dns` | — | Disable DNS interception |
-| `--no-stdout` | — | Disable stdout/stderr scanning |
-| `--no-entropy` | — | Disable entropy analysis |
-| `--log-level <level>` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
-| `--log-format <fmt>` | `pretty` | Log format (`pretty` or `json`) |
-| `--log-file <path>` | — | Write logs to a file |
+| `-e, --env-file <path>` | `.env` | Path to a custom `.env` file to load secrets from |
+| `-v, --verbose` | `false` | Enable verbose proxy and hook debug logging |
+| `--no-mitm` | — | Disable HTTPS MITM proxy (faster startup, no network scan) |
+| `--quiet` | `false` | Suppress startup banner and leak alerts (show summary only) |
+| `--log-file <path>` | — | Path relative to CWD to write structured JSONL events |
 
 ### Examples
 
@@ -45,95 +40,40 @@ envtrap run node app.js
 envtrap run node --max-old-space-size=4096 server.js --port 3000
 ```
 
-**Using a custom config:**
+**Using custom environment file:**
 ```bash
-envtrap run --config ./config/envtrap.prod.json node app.js
+envtrap run --env-file .env.production node app.js
 ```
 
-**Warn-only mode (no blocking):**
+**Disable MITM proxy network scanning:**
 ```bash
-envtrap run --mode warn node app.js
+envtrap run --no-mitm node app.js
 ```
 
-**With JSON logging to file:**
+**Running with quiet and logging output to a file:**
 ```bash
-envtrap run --log-format json --log-file /var/log/envtrap.log node app.js
-```
-
-**Disable specific channels:**
-```bash
-envtrap run --no-subprocess --no-dns node app.js
+envtrap run --quiet --log-file logs/envtrap-run.jsonl node app.js
 ```
 
 ---
 
 ## `envtrap check`
 
-Validates your `envtrap.json` configuration file.
+Validates your `envtrap.json` configuration file in the current working directory.
 
 ```bash
-envtrap check [--config <path>]
+envtrap check
 ```
 
 **Output on success:**
-```
-✓ envtrap.json is valid
-  mode: block
-  channels: https, subprocess, dns, stdout, entropy
-  exclusions: 3 domains, 0 envVars, 2 patterns
+```text
+✅ Configuration is valid.
 ```
 
 **Output on error:**
-```
-✗ envtrap.json is invalid
-  Error: channels.subprocess.allowList must be an array of strings
-```
-
----
-
-## `envtrap scan`
-
-Scan a string or file for secrets without running a process. Useful for pre-commit hooks or CI pipelines.
-
-```bash
-# Scan a string
-envtrap scan --string "sk_live_abc123"
-
-# Scan a file
-envtrap scan --file .env
-
-# Scan stdin
-cat .env | envtrap scan --stdin
-```
-
-**Output:**
-```
-DETECTED | Pattern: Stripe Secret Key
-Value fingerprint: SHA256:a4b4ecc7d4a4...
-Severity: critical
-```
-
----
-
-## `envtrap version`
-
-Print the installed envtrap version.
-
-```bash
-envtrap version
-# → envtrap v0.1.0
-```
-
----
-
-## `envtrap help`
-
-Print help information.
-
-```bash
-envtrap help
-envtrap help run
-envtrap help scan
+```text
+Configuration Validation Failed:
+  - [$.channels.network] Invalid mode "invalid-mode". Valid modes: block, warn, off
 ```
 
 ---
@@ -142,8 +82,6 @@ envtrap help scan
 
 | Code | Meaning |
 |---|---|
-| `0` | Process exited normally (no detections, or mode=warn) |
-| `1` | A secret was detected and blocked (mode=block) |
-| `2` | Configuration error |
-| `3` | envtrap internal error |
-| Forwarded | The wrapped process's own exit code (when no block occurs) |
+| `0` | Process exited normally (no detections in block mode, or validations passed) |
+| `1` | A secret was detected and blocked (mode=block), or validation failed |
+| Forwarded | The wrapped process's own exit code (when no block/leak triggers exit) |

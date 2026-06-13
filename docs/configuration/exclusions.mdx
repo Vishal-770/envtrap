@@ -33,56 +33,15 @@ Domains in the allow-list skip body and header inspection for HTTPS requests:
   Only add domains you explicitly control or fully trust. An attacker who registers `api.stripe.com.attacker.com` would still be blocked — envtrap matches the exact domain, not a substring.
 </Warning>
 
-## Environment Variable Exclusions
-
-Exclude specific `process.env` variable names from secret scanning:
-
-```json
-{
-  "exclusions": {
-    "envVars": [
-      "NODE_ENV",
-      "PORT",
-      "HOST",
-      "LOG_LEVEL",
-      "APP_NAME"
-    ]
-  }
-}
-```
-
-This is useful when your own environment variable values happen to match a secret pattern (e.g., an internal 32-char alphanumeric ID that looks like an API key).
-
-## Pattern Exclusions
-
-Suppress detections for strings matching specific regex patterns. These are checked **after** a detection is triggered — if the matched value also matches an exclusion pattern, the detection is suppressed:
-
-```json
-{
-  "exclusions": {
-    "patterns": [
-      "^Bearer test_",
-      "^sk_test_",
-      "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
-    ]
-  }
-}
-```
-
-Common use cases:
-- Exclude Stripe **test** keys (`sk_test_*`) while still blocking live keys (`sk_live_*`)
-- Exclude UUIDs from entropy detection
-- Exclude your own nonces or CSRF tokens
-
 ## Path Exclusions
 
-Exclude specific source file paths from triggering detections (useful for test suites):
+Exclude specific source file paths from triggering detections (useful for test suites or build scripts):
 
 ```json
 {
   "exclusions": {
     "paths": [
-      "test/",
+      "test/**",
       "**/__tests__/**",
       "*.test.js",
       "*.spec.ts"
@@ -92,31 +51,21 @@ Exclude specific source file paths from triggering detections (useful for test s
 ```
 
 <Note>
-  Path exclusions use glob matching. envtrap resolves the call stack of each intercepted operation and checks if the call originated from an excluded path.
+  Path exclusions use glob matching. envtrap resolves the call stack of each intercepted operation and checks if the call originated from a path matching the glob pattern.
 </Note>
 
 ## Complete Exclusion Example
 
 ```json
 {
-  "mode": "block",
   "exclusions": {
     "domains": [
       "api.stripe.com",
       "api.openai.com",
       "sentry.io"
     ],
-    "envVars": [
-      "NODE_ENV",
-      "PORT"
-    ],
-    "patterns": [
-      "^sk_test_",
-      "^Bearer test_",
-      "^[a-f0-9-]{36}$"
-    ],
     "paths": [
-      "test/",
+      "test/**",
       "**/__tests__/**"
     ]
   }

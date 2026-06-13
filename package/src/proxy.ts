@@ -22,6 +22,7 @@ import * as tls from 'tls';
 import { generateDomainCert } from './ca.js';
 import { scan } from './scanner.js';
 import { warn, info } from './reporter.js';
+import { EnvtrapConfig } from './config.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -39,11 +40,14 @@ const MAX_BUFFER_BYTES = 1_048_576; // 1 MB
  *
  * @returns  A promise resolving to the bound port number
  */
-export function startProxy(verbose = false, allowedDomains = new Set<string>()): Promise<number> {
+export function startProxy(verbose = false, config: EnvtrapConfig): Promise<number> {
+  const allowedDomains = new Set(config.exclusions.domains);
+  const mode = config.channels.network || 'block';
+
   return new Promise((resolve, reject) => {
     const server = http.createServer();
 
-    // Plain HTTP: forward unencrypted requests (rare, but handle gracefully)
+    // Plain HTTP: forward unencrypted requests
     server.on('request', (req: http.IncomingMessage, res: http.ServerResponse) => {
       const targetUrl = req.url ?? '/';
       const hostHeader = req.headers.host ?? '';
@@ -59,39 +63,49 @@ export function startProxy(verbose = false, allowedDomains = new Set<string>()):
       });
 
       req.on('end', () => {
-        if (!isAllowed) {
+        let isBlocked = false;
+        if (!isAllowed && mode !== 'off') {
           const body = Buffer.concat(bodyChunks).toString('utf-8');
           if (body) {
-            scan(body, 'network');
+            isBlocked = scan(body, 'network') || isBlocked;
           }
 
           // Also scan headers
           const headerStr = JSON.stringify(req.headers);
-          scan(headerStr, 'network');
-          scan(targetUrl, 'network');
+          isBlocked = scan(headerStr, 'network') || isBlocked;
+          isBlocked = scan(targetUrl, 'network') || isBlocked;
         }
+
+        if (isBlocked) {
+          if (verbose) warn(`HTTP request blocked due to secret leak`);
+          res.writeHead(403, { 'Content-Type': 'text/plain' });
+          res.end('Blocked by envtrap');
+          return;
+        }
+
+        // Forward request if not blocked
+        const options: https.RequestOptions = {
+          host: hostHeader,
+          path: req.url,
+          method: req.method,
+          headers: req.headers,
+        };
+
+        const proxyReq = http.request(options, (proxyRes) => {
+          res.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
+          proxyRes.pipe(res);
+        });
+
+        proxyReq.on('error', (err) => {
+          warn(`HTTP upstream error: ${err.message}`);
+          res.writeHead(502);
+          res.end('Bad Gateway');
+        });
+
+        const bodyBuf = Buffer.concat(bodyChunks);
+        proxyReq.write(bodyBuf);
+        proxyReq.end();
       });
-
-      // Forward request
-      const options: https.RequestOptions = {
-        host: hostHeader,
-        path: req.url,
-        method: req.method,
-        headers: req.headers,
-      };
-
-      const proxyReq = http.request(options, (proxyRes) => {
-        res.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
-        proxyRes.pipe(res);
-      });
-
-      proxyReq.on('error', (err) => {
-        warn(`HTTP upstream error: ${err.message}`);
-        res.writeHead(502);
-        res.end('Bad Gateway');
-      });
-
-      req.pipe(proxyReq);
     });
 
     // HTTPS CONNECT: the core MITM interception path
@@ -102,7 +116,7 @@ export function startProxy(verbose = false, allowedDomains = new Set<string>()):
 
       if (verbose) info(`CONNECT intercept: ${targetHost}`);
 
-      handleConnect(hostname, upstreamPort, clientSocket, head, verbose, allowedDomains).catch((err: Error) => {
+      handleConnect(hostname, upstreamPort, clientSocket, head, verbose, config).catch((err: Error) => {
         warn(`CONNECT handler error for ${targetHost}: ${err.message}`);
         safeDestroySocket(clientSocket);
       });
@@ -132,7 +146,7 @@ async function handleConnect(
   clientSocket: net.Socket,
   head: Buffer,
   verbose: boolean,
-  allowedDomains: Set<string>,
+  config: EnvtrapConfig,
 ): Promise<void> {
   // Step 1: generate (or retrieve cached) domain cert for the target
   let creds: { keyPem: string; certPem: string };
@@ -149,7 +163,6 @@ async function handleConnect(
   clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
 
   // Step 3: Boot an in-memory TLS server to impersonate the target.
-  //         SNICallback provides the domain-specific cert per hostname.
   const tlsServer = tls.createServer({
     SNICallback: (_serverName: string, cb: (err: Error | null, ctx?: tls.SecureContext) => void) => {
       const ctx = tls.createSecureContext({
@@ -162,11 +175,10 @@ async function handleConnect(
 
   // Step 4: When the TLS server gets a decrypted connection, buffer the payload
   tlsServer.on('secureConnection', (tlsSocket: tls.TLSSocket) => {
-    interceptTlsSocket(tlsSocket, hostname, upstreamPort, verbose, allowedDomains);
+    interceptTlsSocket(tlsSocket, hostname, upstreamPort, verbose, config);
   });
 
   // Step 5: Pipe the raw client TCP socket into the fake TLS server.
-  //         The `head` buffer contains any data already read by the HTTP server.
   const duplexSocket = tlsServer.emit('connection', clientSocket);
   if (!duplexSocket && head.length > 0) {
     clientSocket.unshift(head);
@@ -187,12 +199,15 @@ function interceptTlsSocket(
   hostname: string,
   upstreamPort: number,
   verbose: boolean,
-  allowedDomains: Set<string>,
+  config: EnvtrapConfig,
 ): void {
+  const allowedDomains = new Set(config.exclusions.domains);
+  const isAllowed = allowedDomains.has(hostname);
+  const mode = config.channels.network || 'block';
+
   const requestChunks: Buffer[] = [];
   let totalBytes = 0;
   let upstreamSocket: tls.TLSSocket | null = null;
-  const isAllowed = allowedDomains.has(hostname);
 
   tlsSocket.on('data', (chunk: Buffer) => {
     // Buffer chunks up to 1MB for scanning
@@ -200,16 +215,22 @@ function interceptTlsSocket(
       requestChunks.push(chunk);
       totalBytes += chunk.length;
 
-      // Scan cumulative request payload immediately (unless allowed)
-      if (!isAllowed) {
+      // Scan cumulative request payload immediately (unless allowed or off)
+      if (!isAllowed && mode !== 'off') {
         const payload = Buffer.concat(requestChunks).toString('utf-8');
-        scan(payload, 'network');
+        const isBlocked = scan(payload, 'network');
+        if (isBlocked) {
+          if (verbose) warn(`Network leak blocked: closing connection to ${hostname}`);
+          safeDestroySocket(tlsSocket);
+          safeDestroySocket(upstreamSocket);
+          return;
+        }
       }
     }
 
     // Lazily establish the upstream connection on first data
     if (!upstreamSocket) {
-      upstreamSocket = connectUpstream(hostname, upstreamPort, tlsSocket, verbose, isAllowed);
+      upstreamSocket = connectUpstream(hostname, upstreamPort, tlsSocket, verbose, config, isAllowed);
     }
 
     if (upstreamSocket && !upstreamSocket.destroyed) {
@@ -218,8 +239,8 @@ function interceptTlsSocket(
   });
 
   tlsSocket.on('end', () => {
-    // Scan the buffered request payload (unless allowed)
-    if (!isAllowed && requestChunks.length > 0) {
+    // Scan the buffered request payload (unless allowed or off)
+    if (!isAllowed && mode !== 'off' && requestChunks.length > 0) {
       const payload = Buffer.concat(requestChunks).toString('utf-8');
       scan(payload, 'network');
     }
@@ -241,14 +262,18 @@ function connectUpstream(
   port: number,
   downstreamSocket: tls.TLSSocket,
   verbose: boolean,
+  config: EnvtrapConfig,
   isAllowed: boolean,
 ): tls.TLSSocket {
+  const mode = config.channels.network || 'block';
+  const rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
+
   const upstream = tls.connect(
     {
       host: hostname,
       port,
       servername: hostname,
-      rejectUnauthorized: true,
+      rejectUnauthorized,
     },
     () => {
       if (verbose) info(`Upstream TLS connected: ${hostname}:${port}`);
@@ -257,10 +282,15 @@ function connectUpstream(
 
   // Pipe upstream response back downstream
   upstream.on('data', (chunk: Buffer) => {
-    // Scan the response too (unless allowed)
-    if (!isAllowed) {
+    // Scan the response too (unless allowed or off)
+    if (!isAllowed && mode !== 'off') {
       const responseStr = chunk.toString('utf-8');
-      scan(responseStr, 'network');
+      const isBlocked = scan(responseStr, 'network');
+      if (isBlocked) {
+        safeDestroySocket(downstreamSocket);
+        safeDestroySocket(upstream);
+        return;
+      }
     }
 
     if (!downstreamSocket.destroyed) {

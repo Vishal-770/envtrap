@@ -7,6 +7,7 @@
 import { scanContent, extractContext, formatNetworkContext } from './fingerprint.js';
 import { flag } from './reporter.js';
 import type { LeakEvent, Secret } from './types.js';
+import { EnvtrapConfig, DEFAULT_CONFIG } from './config.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -25,6 +26,9 @@ const DEDUP_TTL_MS = 1_500;
 /** The canonical list of secrets loaded at startup */
 let loadedSecrets: Secret[] = [];
 
+/** Active configuration */
+let currentConfig: EnvtrapConfig = DEFAULT_CONFIG;
+
 /** TTL deduplication cache: "${secretName}:${channel}" → last-seen timestamp */
 const dedupCache = new Map<string, number>();
 
@@ -41,6 +45,13 @@ const allEvents: LeakEvent[] = [];
  */
 export function setSecrets(secrets: Secret[]): void {
   loadedSecrets = secrets;
+}
+
+/**
+ * Configures the scanner with user settings.
+ */
+export function setConfig(config: EnvtrapConfig): void {
+  currentConfig = config;
 }
 
 /**
@@ -63,12 +74,16 @@ export function getAllEvents(): LeakEvent[] {
  *
  * @param rawContent - The raw string to scan
  * @param channel    - Which monitoring channel is calling
+ * @returns          true if a leak was detected and the channel is in 'block' mode
  */
 export function scan(
   rawContent: string,
   channel: LeakEvent['channel'],
-): void {
-  if (!rawContent || loadedSecrets.length === 0) return;
+): boolean {
+  if (!rawContent || loadedSecrets.length === 0) return false;
+
+  const mode = currentConfig.channels[channel] || 'warn';
+  if (mode === 'off') return false;
 
   // Backpressure: clamp to 1MB — secrets almost always appear in the first
   // few KB (headers, log prefixes). Scanning 50MB blocks the event loop.
@@ -78,10 +93,16 @@ export function scan(
       : rawContent;
 
   // Fingerprint scan
-  const foundNames = scanContent(content, loadedSecrets);
-  if (foundNames.length === 0) return;
+  const foundNames = scanContent(
+    content,
+    loadedSecrets,
+    currentConfig.entropy.minLength,
+    currentConfig.entropy.threshold
+  );
+  if (foundNames.length === 0) return false;
 
   const now = Date.now();
+  let blocked = false;
 
   for (const name of foundNames) {
     const dedupKey = `${name}:${channel}`;
@@ -117,7 +138,13 @@ export function scan(
 
     // Fire the alert
     flag(event);
+
+    if (mode === 'block') {
+      blocked = true;
+    }
   }
+
+  return blocked;
 }
 
 // ---------------------------------------------------------------------------
@@ -129,11 +156,16 @@ export function scan(
  * Called from the ESM hook's virtual module injection.
  *
  * @param env - The environment object passed to spawn/exec
+ * @returns   true if blocked
  */
-export function checkChildEnv(env: Record<string, string | undefined>): void {
-  if (!env || loadedSecrets.length === 0) return;
+export function checkChildEnv(env: Record<string, string | undefined>): boolean {
+  if (!env || loadedSecrets.length === 0) return false;
+
+  const mode = currentConfig.channels.child_process || 'warn';
+  if (mode === 'off') return false;
 
   const now = Date.now();
+  let blocked = false;
 
   for (const secret of loadedSecrets) {
     const envValue = env[secret.name];
@@ -158,6 +190,12 @@ export function checkChildEnv(env: Record<string, string | undefined>): void {
 
       allEvents.push(event);
       flag(event);
+
+      if (mode === 'block') {
+        blocked = true;
+      }
     }
   }
+
+  return blocked;
 }

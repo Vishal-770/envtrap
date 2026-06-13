@@ -1,14 +1,17 @@
 {
-  "mode": "block",
   "channels": {
-    "https": true,
-    "subprocess": true,
-    "dns": true,
-    "stdout": true,
-    "entropy": true
+    "stdout": "warn",
+    "stderr": "warn",
+    "network": "warn",
+    "child_process": "warn",
+    "dns": "warn"
   },
   "exclusions": {
     "domains": [],
-    "envVars": ["NODE_ENV", "PORT"]
+    "paths": []
+  },
+  "entropy": {
+    "threshold": 3.5,
+    "minLength": 12
   }
 }

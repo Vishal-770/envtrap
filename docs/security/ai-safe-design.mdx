@@ -61,36 +61,25 @@ Use this in development to understand which tool calls carry which credentials, 
 
 ```json
 {
-  "mode": "block",
   "channels": {
-    "https": {
-      "enabled": true,
-      "mode": "block",
-      "allowedDomains": [
-        "api.openai.com",
-        "api.anthropic.com"
-      ]
-    },
-    "subprocess": {
-      "enabled": true,
-      "mode": "block",
-      "allowList": ["node", "npm", "pnpm"]
-    },
-    "dns": true,
-    "stdout": {
-      "enabled": true,
-      "mode": "warn",
-      "redact": true
-    },
-    "entropy": {
-      "enabled": true,
-      "threshold": 4.5
-    }
+    "stdout": "warn",
+    "stderr": "warn",
+    "network": "block",
+    "child_process": "warn",
+    "dns": "block"
   },
-  "logging": {
-    "format": "json",
-    "file": "/var/log/envtrap.log"
-  }
+  "exclusions": {
+    "domains": [
+      "api.openai.com",
+      "api.anthropic.com"
+    ],
+    "paths": ["test/**"]
+  },
+  "entropy": {
+    "threshold": 3.5,
+    "minLength": 12
+  },
+  "logFile": "logs/envtrap-ai.log"
 }
 ```
 

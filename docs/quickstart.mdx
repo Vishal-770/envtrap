@@ -67,22 +67,26 @@ For fine-grained control, create an `envtrap.json` in your project root:
 
 ```json
 {
-  "mode": "block",
   "channels": {
-    "https": true,
-    "subprocess": true,
-    "dns": true,
-    "stdout": true,
-    "entropy": true
+    "stdout": "warn",
+    "stderr": "warn",
+    "network": "block",
+    "child_process": "warn",
+    "dns": "block"
   },
   "exclusions": {
-    "domains": ["api.stripe.com", "api.openai.com"]
+    "domains": ["api.stripe.com", "api.openai.com"],
+    "paths": ["test/**"]
+  },
+  "entropy": {
+    "threshold": 3.5,
+    "minLength": 12
   }
 }
 ```
 
 <Tip>
-  Use `"mode": "warn"` during development to log detections without blocking, then switch to `"block"` in production.
+  Use `"warn"` mode for channels during development to log detections without blocking, then switch to `"block"` in production.
 </Tip>
 
 ## Step 5 — Integrate with package.json
@@ -100,13 +104,12 @@ Add envtrap to your npm start script so every run is protected:
 
 ## What Happens on Detection?
 
-| Severity | Action |
-|---|---|
-| Secret in HTTPS body | Request terminated, secret fingerprinted |
-| Secret in stdout/stderr | Output redacted, warning logged |
-| Unauthorized subprocess | Process blocked before exec |
-| DNS tunneling detected | Query dropped, alert emitted |
-| High-entropy string | Flagged with entropy score |
+| Channel | Action (in `block` mode) | Action (in `warn` mode) |
+|---|---|---|
+| `network` | Request terminated (via local MITM proxy) | Warning logged, request allowed |
+| `stdout` / `stderr` | Process terminated immediately | Output redacted, warning logged |
+| `child_process` | Subprocess spawn blocked (throws error) | Warning logged, subprocess allowed |
+| `dns` | DNS query dropped (throws error) | Warning logged (or entropy warning shown) |
 
 ## Next Steps
 
