@@ -1,117 +1,201 @@
 ---
 title: "envtrap.json Reference"
-description: "Complete reference for the envtrap.json configuration file — all options, types, and defaults."
+description: "Complete reference for every field in the envtrap.json configuration file — exact types, defaults, and validation rules."
 ---
 
 ## Overview
 
-Create an `envtrap.json` file in your project root to customize envtrap's behavior. All fields are optional — envtrap ships with sensible defaults that work out of the box.
+Create an `envtrap.json` file in your **project root** (next to `package.json`) to customise envtrap's behaviour. All fields are **optional** — envtrap ships with safe, production-ready defaults.
 
+envtrap validates this file on every `envtrap run` and prints warnings for any invalid fields. You can also validate it manually with `envtrap check`.
+
+---
+
+## Full Schema with Defaults
+
+```json
+{
+  "channels": {
+    "stdout":        "warn",
+    "stderr":        "warn",
+    "network":       "block",
+    "child_process": "warn",
+    "dns":           "block"
+  },
+  "exclusions": {
+    "domains": [],
+    "paths":   []
+  },
+  "entropy": {
+    "threshold": 3.5,
+    "minLength": 12
+  },
+  "quiet":   false,
+  "logFile": null
+}
+```
+
+---
+
+## `channels`
+
+**Type**: `object`  
+**Default**: see above
+
+Sets the enforcement mode for each interception channel independently. Each key accepts one of three string values:
+
+| Mode | Meaning |
+|---|---|
+| `"block"` | Detected leak is **prevented**. For network: connection is terminated. For dns/child_process: a synchronous Error is thrown. For stdout/stderr: child process is killed via SIGTERM. |
+| `"warn"` | Detected leak is **logged** and secret is **redacted** in output, but execution continues. |
+| `"off"` | Channel monitoring is **completely disabled** — no scanning, no alerts. |
+
+### Channel Keys
+
+| Key | Default | What it intercepts |
+|---|---|---|
+| `stdout` | `"warn"` | Every write to `process.stdout` from the child process |
+| `stderr` | `"warn"` | Every write to `process.stderr` from the child process |
+| `network` | `"block"` | All outbound HTTP and HTTPS connections via the MITM proxy |
+| `child_process` | `"warn"` | `spawn`, `exec`, `fork`, `execFile`, `spawnSync`, `execSync`, `execFileSync` — checks `options.env` |
+| `dns` | `"block"` | All `node:dns` resolution calls — `lookup`, `resolve*`, and `dns.promises.*` |
+
+**Example — set all channels to warn-only for development:**
 ```json
 {
   "channels": {
     "stdout": "warn",
     "stderr": "warn",
-    "network": "block",
+    "network": "warn",
     "child_process": "warn",
-    "dns": "block"
-  },
-  "exclusions": {
-    "domains": ["api.stripe.com"],
-    "paths": ["test/**", "**/__tests__/**"]
-  },
-  "entropy": {
-    "threshold": 3.5,
-    "minLength": 12
-  },
-  "quiet": false,
-  "logFile": "envtrap.log"
-}
-```
-
----
-
-## Top-Level Options
-
-### `channels`
-
-**Type**: `object`
-
-Defines the enforcement mode for each runtime interception channel. Each key must be set to one of `"block"`, `"warn"`, or `"off"`:
-
-- `"block"` — Detected secrets block/terminate the action (and for stdout/stderr, kill the child process).
-- `"warn"` — Detected secrets are logged, and stdout/stderr streams are redacted, but the execution continues.
-- `"off"` — Monitoring on this channel is disabled completely.
-
-| Channel | Default | Description |
-|---|---|---|
-| `stdout` | `"warn"` | Scans writes to standard output stream. Redacts secrets on match. |
-| `stderr` | `"warn"` | Scans writes to standard error stream. Redacts secrets on match. |
-| `network` | `"block"` | Runs the local MITM proxy to decrypt and scan outbound HTTP/HTTPS request bodies and headers. |
-| `child_process` | `"warn"` | Intercepts spawn/exec commands and blocks/warns if active secrets are passed inside the subprocess environment variables (`options.env`). |
-| `dns` | `"block"` | Intercepts `node:dns` queries to block lookups containing loaded secrets, or warn on high-entropy subdomains. |
-
-```json
-{
-  "channels": {
-    "network": "block",
-    "stdout": "warn"
+    "dns": "warn"
   }
 }
 ```
 
+**Example — disable a specific channel:**
+```json
+{ "channels": { "child_process": "off" } }
+```
+
+<Warning>
+  Setting a channel to `"off"` fully disables monitoring for that attack surface. Only use this if you are certain no leaks are possible through that channel.
+</Warning>
+
 ---
 
-### `exclusions`
+## `exclusions`
 
 **Type**: `object`
 
-Exclude specific network destinations or file paths from checks to prevent false positives.
+### `exclusions.domains`
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `domains` | `string[]` | `[]` | Fully qualified domain names (FQDNs) to skip from proxy and network checks (e.g. `["api.stripe.com"]`). |
-| `paths` | `string[]` | `[]` | Glob patterns of source files to exclude from stack checks. Intercepted events originating from these paths are ignored. |
+**Type**: `string[]`  
+**Default**: `[]`
+
+A list of **fully-qualified domain names** that are allowed to bypass network scanning entirely. Requests to these domains are forwarded directly through the MITM proxy without inspecting headers, body, or URL.
+
+Use this for your own known API endpoints where you intentionally send credentials:
 
 ```json
 {
   "exclusions": {
-    "domains": ["api.stripe.com"],
-    "paths": ["test/**", "*.test.js"]
+    "domains": [
+      "api.stripe.com",
+      "api.openai.com",
+      "api.anthropic.com",
+      "o123456.ingest.sentry.io"
+    ]
   }
 }
 ```
 
+<Warning>
+  Only add domains you explicitly own or fully trust. envtrap matches the exact hostname — subdomains like `evil.api.stripe.com` are **not** covered by adding `api.stripe.com`.
+</Warning>
+
+### `exclusions.paths`
+
+**Type**: `string[]`  
+**Default**: `[]`
+
+A list of **glob patterns** for source file paths. If an intercepted operation (dns lookup, subprocess spawn, stdout write) originates from a file that matches one of these patterns — resolved via call stack inspection — the detection is suppressed.
+
+Common use case: suppress alerts from your own test files that intentionally use mock secrets:
+
+```json
+{
+  "exclusions": {
+    "paths": [
+      "test/**",
+      "**/__tests__/**",
+      "*.test.js",
+      "*.spec.ts"
+    ]
+  }
+}
+```
+
+**Glob matching rules**:
+- `*` matches any sequence of characters except `/`
+- `**` matches any sequence of characters including `/`
+- Patterns without a leading `/` or `**/` are automatically prefixed with `**/` to match anywhere in the path
+
+<Note>
+  Path exclusions apply to `stdout`, `stderr`, `child_process`, and `dns` channels. They do **not** apply to the `network` channel (the MITM proxy has no access to call stack information).
+</Note>
+
 ---
 
-### `entropy`
+## `entropy`
 
 **Type**: `object`
 
-Configure the Shannon entropy detector which screens environment variables on startup.
+Controls the Shannon entropy threshold used to screen `process.env` and `.env` values as secret candidates at startup.
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `threshold` | `number` | `3.5` | Minimum Shannon entropy score (0 to 8) a string must have to be considered a secret. |
-| `minLength` | `number` | `12` | Minimum character length for entropy scanning. |
+### `entropy.threshold`
+
+**Type**: `number`  
+**Default**: `3.5`  
+**Range**: 0 to 8
+
+Minimum Shannon entropy score a string must have to be registered as an active secret. Higher values are stricter (fewer false positives, might miss low-entropy secrets).
+
+### `entropy.minLength`
+
+**Type**: `number`  
+**Default**: `12`
+
+Minimum character length a value must have before entropy is evaluated. Values shorter than this are always dropped, regardless of entropy score.
 
 ```json
 {
   "entropy": {
-    "threshold": 3.5,
-    "minLength": 12
+    "threshold": 4.0,
+    "minLength": 16
   }
 }
 ```
 
+<Note>
+  These settings also control the high-entropy DNS tunneling detection threshold inside `hooks.mjs`.
+</Note>
+
 ---
 
-### `quiet`
+## `quiet`
 
 **Type**: `boolean`  
 **Default**: `false`
 
-If set to `true`, suppresses the envtrap startup banner and real-time console alerts. Only prints the final summary of exfiltrations upon process exit.
+When `true`, suppresses all real-time output from envtrap:
+- No startup banner
+- No per-leak alert blocks
+- No `warn()` / `info()` lines
+
+Only the **run summary** (printed after child exits) and **`.envtrap-report.json`** are still produced.
+
+Can also be set via the `--quiet` CLI flag.
 
 ```json
 { "quiet": true }
@@ -119,13 +203,45 @@ If set to `true`, suppresses the envtrap startup banner and real-time console al
 
 ---
 
-### `logFile`
+## `logFile`
 
 **Type**: `string | null`  
 **Default**: `null`
 
-Optional path relative to the current working directory (or absolute path) to write structured JSONL events as leaks are detected.
+Path (relative to the current working directory, or absolute) to a file where envtrap appends **structured JSONL events** as each leak is detected — one JSON object per line.
+
+The log directory is created automatically if it does not exist.
+
+Can also be set via the `--log-file <path>` CLI flag.
 
 ```json
 { "logFile": "logs/envtrap-events.jsonl" }
+```
+
+Each JSONL line has the following shape:
+
+```json
+{"secretName":"STRIPE_SECRET_KEY","source":"env","channel":"network","context":"...","sha256":"baf2ae56...","timestamp":1781335024545}
+```
+
+---
+
+## Validation
+
+envtrap validates `envtrap.json` on every startup and prints warnings for any issues without crashing. Run `envtrap check` to validate explicitly:
+
+```bash
+envtrap check
+```
+
+**Valid output:**
+```text
+✅ Configuration is valid.
+```
+
+**Invalid output:**
+```text
+Configuration Validation Failed:
+  - [$.channels.network] Invalid mode "fast". Valid modes: block, warn, off
+  - [$.entropy.threshold] Must be a number (e.g. 3.5)
 ```

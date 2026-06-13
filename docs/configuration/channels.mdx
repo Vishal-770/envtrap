@@ -1,82 +1,132 @@
 ---
 title: "Channels"
-description: "Configure each interception channel individually — enable/disable, set per-channel mode, and customize allow-lists."
+description: "Detailed reference for each of the five monitoring channels and their enforcement modes."
 ---
 
-## What Are Channels?
+## What Is a Channel?
 
-A **channel** in envtrap represents a specific data-exfiltration path that can carry secrets out of your Node.js process. envtrap intercepts all five channels by default.
+A **channel** is a distinct path through which secrets can leave your Node.js process. envtrap monitors five channels, each independently configurable.
 
-## Channel Configuration Format
+Each channel is set to one of three modes in `envtrap.json`:
 
-Each channel can be configured with one of the following enforcement modes:
+| Mode | Effect |
+|---|---|
+| `"block"` | Prevents the operation and throws an error or kills the process |
+| `"warn"` | Logs the detection and redacts output, but allows execution to continue |
+| `"off"` | Disables all monitoring for this channel |
 
-- `"block"`: If a leak is detected, the operation is prevented or blocked (and stdout/stderr kills the process).
-- `"warn"`: If a leak is detected, it is logged (and stdout/stderr outputs are redacted), but the operation proceeds.
-- `"off"`: Monitoring on this channel is disabled.
+---
 
+## `network` — Outbound HTTP/HTTPS
+
+**Default mode**: `"block"`
+
+envtrap starts a local **MITM TLS proxy** on `127.0.0.1` at a random port and routes all child process HTTP/HTTPS traffic through it. This allows envtrap to decrypt, inspect, and optionally block outbound requests.
+
+**What is scanned**:
+- Request URL/path
+- All request headers
+- Request body (up to 1 MB)
+- Response data (scanned inline, upstream connection dropped on block)
+
+**Domain exclusions** — bypass scanning for specific trusted hosts:
 ```json
 {
-  "channels": {
-    "stdout": "warn",
-    "stderr": "warn",
-    "network": "block",
-    "child_process": "warn",
-    "dns": "block"
-  }
+  "channels": { "network": "block" },
+  "exclusions": { "domains": ["api.stripe.com", "api.openai.com"] }
 }
+```
+
+**Block behaviour**:
+- Plain HTTP: `403 Forbidden` response
+- HTTPS CONNECT: socket is destroyed, client receives connection error
+
+**Disable MITM entirely** (fastest startup, no network scanning):
+```bash
+envtrap run --no-mitm node app.js
+```
+or set in config:
+```json
+{ "channels": { "network": "off" } }
 ```
 
 ---
 
-## stdout Channel
+## `stdout` — Standard Output
 
-Intercepts writes to standard output (`process.stdout`).
+**Default mode**: `"warn"`
 
-- **`"block"`**: If a loaded secret is detected, it terminates the process with exit code `1` immediately.
-- **`"warn"`** (Default): If a loaded secret is detected, it redacts it to `[REDACTED: SHA256:<hash>]` on stdout and logs a warning.
-- **`"off"`**: Completely disables interception on `stdout`.
+envtrap reads every chunk written to `process.stdout` by the child process (the child is spawned with `stdio: ['inherit', 'pipe', 'pipe']`) and scans it for active secrets.
 
----
+**`warn` mode behaviour**:
+1. Secrets are redacted in the output: `Bearer [REDACTED: SHA256:f23831a9]`
+2. A leak alert is printed to envtrap's own stderr
+3. The child process continues running normally
 
-## stderr Channel
+**`block` mode behaviour**:
+1. Child process receives `SIGTERM` immediately
+2. No further stdout output is forwarded
 
-Intercepts writes to standard error (`process.stderr`).
-
-- **`"block"`**: If a loaded secret is detected, it terminates the process with exit code `1` immediately.
-- **`"warn"`** (Default): If a loaded secret is detected, it redacts it to `[REDACTED: SHA256:<hash>]` on stderr and logs a warning.
-- **`"off"`**: Completely disables interception on `stderr`.
-
----
-
-## network Channel
-
-Intercepts outbound TCP network traffic, running a local HTTP/HTTPS MITM proxy on `127.0.0.1`.
-
-- **`"block"`** (Default): If a loaded secret is found in request headers, URL, or body, the connection is terminated and a `403 Forbidden` response is returned to the app.
-- **`"warn"`**: If a secret is found, logs the leak, but forwards the request to the upstream target.
-- **`"off"`**: Disables the proxy completely.
-
-You can allow specific domains to bypass proxy checks using `exclusions.domains`.
+**Path exclusions**: If the code writing to stdout comes from a file matching `exclusions.paths`, the `hooks.mjs` preRedact function replaces the secret with `[REDACTED: PATH_EXCLUDED]` **inside the child**, so the parent scanner sees only the sanitised value and emits no alert.
 
 ---
 
-## child_process Channel
+## `stderr` — Standard Error
 
-Intercepts subprocess creation (`exec`, `spawn`, `fork`, etc.).
+**Default mode**: `"warn"`
 
-- **`"block"`**: Spawning is blocked and a synchronous error is thrown if the environment variables (`options.env`) passed to the child contain an active secret.
-- **`"warn"`** (Default): Logs the subprocess creation leak warning and allows spawning.
-- **`"off"`**: Disables environment checks on subprocesses.
+Identical behaviour to the `stdout` channel, but for `process.stderr`. envtrap reads stderr line by line, filtering internal envtrap protocol messages (prefixed with `[envtrap]`) from normal application error output.
+
+Internal messages like `[envtrap] Child process leak: secret "KEY" passed to: COMMAND` are parsed from the child's stderr stream and used to trigger `child_process` channel alerts in the parent.
 
 ---
 
-## dns Channel
+## `child_process` — Subprocess Spawning
 
-Intercepts hostname resolutions via `node:dns`.
+**Default mode**: `"warn"`
 
-- **`"block"`** (Default): Resolving a hostname that contains a loaded secret will fail the lookup immediately.
-- **`"warn"`**: Logs the DNS leak but permits lookup resolution.
-- **`"off"`**: Disables DNS monitoring.
+envtrap intercepts all Node.js subprocess APIs by wrapping the `node:child_process` module — for both ESM imports and CommonJS `require()` calls.
 
-*Note: High-entropy DNS subdomains are scanned as potential DNS tunneling exfiltrations and warn the user regardless of exact secret content.*
+**Intercepted APIs**:
+- `spawn(command, args, options)` — checks `options.env`
+- `spawnSync(command, args, options)` — checks `options.env`
+- `exec(command, options, callback)` — checks `options.env`
+- `execSync(command, options)` — checks `options.env`
+- `execFile(file, args, options, callback)` — checks `options.env`
+- `execFileSync(file, args, options)` — checks `options.env`
+- `fork(modulePath, args, options)` — checks `options.env`
+
+**Detection logic**: For each intercepted call, if `options.env` is provided, envtrap checks whether any **key name** in `options.env` matches a registered secret key **AND** the corresponding value matches exactly. If both match, the leak is reported.
+
+**`warn` mode**: Reports the leak via stderr, subprocess is allowed to proceed.  
+**`block` mode**: Throws a synchronous `Error` before any OS fork — the subprocess never executes.
+
+**Path exclusions**: Checked via call stack — if the calling file matches `exclusions.paths`, the check is skipped.
+
+---
+
+## `dns` — Hostname Resolution
+
+**Default mode**: `"block"`
+
+envtrap intercepts all DNS resolution calls by wrapping `node:dns`, for both ESM and CommonJS.
+
+**Intercepted APIs (callback style)**:
+`lookup`, `resolve`, `resolve4`, `resolve6`, `resolveAny`, `resolveCname`, `resolveMx`, `resolveNaptr`, `resolveNs`, `resolvePtr`, `resolveSoa`, `resolveSrv`, `resolveTxt`
+
+**Intercepted APIs (promise style — `dns.promises.*`)**:
+All of the above, plus `lookup`
+
+**Two detection mechanisms**:
+
+1. **Secret match**: If the target hostname contains any registered secret value as a substring, the leak is reported
+2. **High-entropy subdomain warning**: The hostname is split on `.` and each label is evaluated — if any label has:
+   - Length ≥ `entropy.minLength` (default `12`)
+   - Shannon entropy ≥ `entropy.threshold` (default `3.5`)
+   
+   ...a DNS tunneling warning is emitted regardless of whether an exact secret was matched. This catches base64/hex-encoded payloads.
+
+**`warn` mode**: Logs the detection, allows the DNS lookup to proceed.  
+**`block` mode**: Throws a synchronous `Error`, preventing any DNS packet from being sent.
+
+**Path exclusions**: Checked via call stack — if the calling file matches `exclusions.paths`, the entire check is skipped.

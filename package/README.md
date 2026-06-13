@@ -2,51 +2,31 @@
 
 A zero-configuration runtime secret leak detector and egress firewall for Node.js.
 
-envtrap is a security agent that wraps Node.js applications to intercept, block, and log the exposure of sensitive data such as API keys, database credentials, and tokens at runtime.
+envtrap is a security agent that wraps Node.js applications to intercept, block, and log the exposure of sensitive data such as API keys, database credentials, and tokens at runtime — across five distinct exfiltration channels.
 
-Unlike static analysis (SAST) tools, envtrap monitors execution boundaries to prevent data exfiltration before it reaches standard outputs, logs, subprocesses, or external network destinations.
+Unlike static analysis (SAST) tools, envtrap monitors execution boundaries to prevent data exfiltration before it reaches log streams, subprocesses, or external network destinations.
+
+---
 
 ## Features
 
-* **Standard Output and Error Interception**: Captures stdout and stderr streams at the OS kernel level (File Descriptors 1 and 2), intercepting writes from native C++ addons that bypass JavaScript-level stream overrides.
-* **HTTPS Decryption (MITM Proxy)**: Terminates TLS connections locally via an in-memory proxy to scan outgoing headers, bodies, and URLs for matching secrets before forwarding requests.
-* **Subprocess Environment Validation**: Hooks the `child_process` module to inspect environment variables (`options.env`) before subprocesses are spawned.
-* **Outbound DNS Tunneling Prevention**: Intercepts `node:dns` lookup and resolve calls to block queries containing secrets.
-* **High-Entropy DNS Warnings**: Analyzes hostname subdomains using Shannon Entropy. It issues warnings for potential DNS tunneling exfiltrations (length >= 12, entropy >= 3.5) without blocking standard resolutions.
+- **HTTPS/HTTP MITM Proxy** (`network` channel, default: `block`): Starts a local TLS proxy on `127.0.0.1`, routes all child process HTTP/HTTPS traffic through it, decrypts payloads, and scans headers, URLs, and request bodies for secrets. Blocks with `403 Forbidden` or socket destruction.
+- **stdout / stderr Stream Scanning** (`stdout`/`stderr` channels, default: `warn`): Pipes the child process's standard streams, scans every chunk, redacts matched secrets (`[REDACTED: SHA256:<8-char>]`), and optionally kills the child on block.
+- **Child Process Env Validation** (`child_process` channel, default: `warn`): Intercepts `spawn`, `exec`, `execFile`, `fork`, and sync variants to check `options.env` for secrets before any OS fork.
+- **DNS Interception** (`dns` channel, default: `block`): Intercepts all `node:dns` APIs (callback and promise style) to block queries containing secret values in the hostname.
+- **High-Entropy DNS Tunneling Detection**: Analyses each subdomain label for Shannon entropy ≥ threshold — flags potential base64/hex encoded DNS-tunneled payloads regardless of secret match.
+- **ESM + CommonJS Coverage**: All module interception works for both ESM (`import`) via `module.register()` customization hooks, and CommonJS (`require()`) via `Module.prototype.require` patching.
+- **AI-Safe Redaction**: Secret values are never printed in logs or terminal output — only their SHA-256 hash prefix is shown.
+- **Structured Leak Reports**: After each run, `.envtrap-report.json` is written to CWD with all events in machine-readable JSON.
+- **Granular Channel Control**: Each channel can be independently set to `block`, `warn`, or `off` via `envtrap.json`.
 
-## Architecture
+---
 
-The following diagram illustrates how envtrap hooks the application boundaries:
+## Requirements
 
-```
-+---------------------------------------------+
-|                 envtrap CLI                 |
-+--------------+---------------+--------------+
-               |               |
-        +------v------+ +------v------+
-        |  OS Pipes   | | MITM Proxy  |
-        |  (FD 1 & 2) | | (127.0.0.1) |
-        +------+------+ +------+------+
-               |               |
-        +------v---------------v------+
-        |       Scanner Engine        |
-        |  (Entropy + Pattern Match)  |
-        +-----------------------------+
-```
+- **Node.js 18.0.0 or later** (ESM customization hooks require Node 18+)
 
-### In-Memory Certificate Authority
-To decrypt HTTPS payloads, envtrap instantiates a local HTTP proxy server.
-On startup, a 2048-bit RSA Root CA is generated in RAM. The public certificate is stored in a temporary location (`os.tmpdir()/envtrap-ca.crt`), and the private key is held exclusively in memory. Domain-specific TLS certificates are generated dynamically and cached.
-
-### Operating System Trust Store Integration
-To support multi-language child processes (e.g., Python, Go) and utilities (e.g., curl):
-* **Linux/macOS**: Copies the Root CA certificate to the system trust store (`/usr/local/share/ca-certificates/` or `/Library/Keychains/System.keychain`) on startup when administrative privileges are present.
-* **Windows**: Executes `certutil -addstore -user root` to inject the CA into the current user's trusted root store, which does not require User Account Control (UAC) elevation.
-* **Cleanup**: Removes the CA certificate from the trust store upon process termination.
-
-### Loader Hooks and Evasion Resistance
-Under Node.js 20.6.0+, envtrap uses Module Customization Hooks (`--import` and `module.register()`) to intercept `node:child_process` and `node:dns`.
-To prevent malware from bypassing checks via `delete process.env`, the hook pre-caches all loaded secrets in an isolated module closure on initialization.
+---
 
 ## Installation
 
@@ -62,111 +42,210 @@ Install as a development dependency:
 npm install --save-dev envtrap
 ```
 
-## Usage
-
-Prepend the application startup command with `envtrap run`:
+Use without installing:
 
 ```bash
-# Standard execution
-envtrap run node app.js
-
-# Custom environment file configuration
-envtrap run --env-file .env.production node app.js
-
-# Disable HTTPS MITM decryption
-envtrap run --no-mitm node app.js
-
-# Verbose execution details
-envtrap run --verbose node app.js
+npx envtrap run node app.js
 ```
 
-## Configuration
+---
 
-For fine-grained control, create an `envtrap.json` in your project root. All fields are optional:
+## Usage
+
+Prefix your start command with `envtrap run`:
+
+```bash
+envtrap run node app.js
+```
+
+Additional flags:
+
+```bash
+# Custom .env file
+envtrap run --env-file .env.production node app.js
+
+# Disable HTTPS MITM proxy (no network channel scanning)
+envtrap run --no-mitm node app.js
+
+# Verbose debug output
+envtrap run --verbose node app.js
+
+# Quiet mode (suppress alerts, show summary only)
+envtrap run --quiet node app.js
+
+# Write structured JSONL events to a file
+envtrap run --log-file logs/envtrap.jsonl node app.js
+```
+
+package.json integration:
+
+```json
+{
+  "scripts": {
+    "start": "envtrap run node app.js",
+    "dev":   "envtrap run node --watch app.js"
+  }
+}
+```
+
+---
+
+## Configuration (`envtrap.json`)
+
+Create `envtrap.json` in your project root for fine-grained control. All fields are optional — envtrap ships with safe defaults.
 
 ```json
 {
   "channels": {
-    "stdout": "warn",
-    "stderr": "warn",
-    "network": "block",
+    "stdout":        "warn",
+    "stderr":        "warn",
+    "network":       "block",
     "child_process": "warn",
-    "dns": "block"
+    "dns":           "block"
   },
   "exclusions": {
     "domains": ["api.stripe.com", "api.openai.com"],
-    "paths": ["test/**", "**/__tests__/**"]
+    "paths":   ["test/**", "**/__tests__/**"]
   },
   "entropy": {
     "threshold": 3.5,
     "minLength": 12
   },
-  "quiet": false,
-  "logFile": "envtrap.log"
+  "quiet":   false,
+  "logFile": null
 }
 ```
 
-### Configuration Options
+### `channels`
 
-* **`channels`**: Set the security enforcement mode for each channel to `"block"`, `"warn"`, or `"off"`:
-  * `stdout` / `stderr`: Stream writes. Detections redact the secret in real-time. In `"block"` mode, the process is terminated.
-  * `network`: Outbound HTTPS/HTTP requests. In `"block"` mode, requests are terminated via the local MITM proxy.
-  * `child_process`: Subprocess execution. In `"block"` mode, spawning is blocked if a secret is present in the environment variables.
-  * `dns`: Hostname resolution. In `"block"` mode, queries are terminated.
-* **`exclusions.domains`**: List of fully-qualified domain names to exclude from HTTPS/HTTP scanning.
-* **`exclusions.paths`**: List of glob patterns to exclude source files (e.g. tests or build scripts) from triggering warnings/blocks.
-* **`entropy`**: Customize Shannon entropy settings:
-  * `threshold` (default `3.5`): Minimum entropy score (randomness) to flag a secret candidate.
-  * `minLength` (default `12`): Minimum length to evaluate strings for entropy.
-* **`quiet`** (default `false`): Suppress startup banners and leak alerts, outputting only final summary metrics.
-* **`logFile`** (default `null`): Path to write structured JSONL events.
+Each key accepts `"block"`, `"warn"`, or `"off"`:
 
-### Configuration Check
+| Channel | Default | Description |
+|---|---|---|
+| `stdout` | `warn` | Scans every write to process.stdout, redacts secrets |
+| `stderr` | `warn` | Scans every write to process.stderr, redacts secrets |
+| `network` | `block` | MITM proxy intercepts all HTTP/HTTPS traffic |
+| `child_process` | `warn` | Checks `options.env` on all spawn/exec/fork calls |
+| `dns` | `block` | Intercepts all `node:dns` resolution calls |
 
-Validate your `envtrap.json` structure using the validation command:
+### `exclusions`
+
+- **`domains`**: Fully-qualified domain names that bypass network scanning entirely
+- **`paths`**: Glob patterns for source files — detections from matching files are suppressed (applies to `stdout`, `stderr`, `child_process`, `dns`)
+
+### `entropy`
+
+- **`threshold`** (default: `3.5`): Minimum Shannon entropy score for a value to be registered as an active secret
+- **`minLength`** (default: `12`): Minimum character length — shorter values are always dropped
+
+### `quiet`
+
+When `true`, suppresses banner and per-leak alerts. Summary and report file are always produced.
+
+### `logFile`
+
+Path (relative or absolute) to append structured JSONL events during the run.
+
+---
+
+## Validate Configuration
 
 ```bash
 envtrap check
 ```
 
+Output on success: `✅ Configuration is valid.`  
+Output on failure shows the exact field path and error message.
+
 ---
 
-## Scanning and Detection Policies
+## Secret Detection
 
-envtrap intercepts the exfiltration of your application's active secrets. It works by loading secrets from the environment variables (excluding common non-sensitive OS environment variables like `PATH`) and `.env` files.
+On startup, envtrap loads secret candidates from two sources:
 
-On startup, loaded secrets are filtered using a validation gate: if they match a known pattern (e.g., Stripe, AWS, or GitHub keys) or meet the configured minimum length and entropy thresholds, they are registered in memory for active runtime scanning.
+1. **`process.env`** — every env var not on the built-in system variable blocklist (`PATH`, `HOME`, `SHELL`, `NODE_ENV`, etc.)
+2. **`.env` file** — parsed with `dotenv`, deduplicated against `process.env`
 
-Any outbound traffic or streams are scanned for exact matches of these registered secrets.
+Each candidate value is tested through the `looksLikeSecret` gate:
 
-### Built-in Token Formats
+1. **Length check**: must be ≥ `entropy.minLength` (default 12 chars)
+2. **Deterministic regex**: if the value matches any known pattern (see below), it's always registered
+3. **Shannon entropy**: if entropy ≥ `entropy.threshold` (default 3.5), it's registered
 
-* **Stripe**: `sk_(live|test)_[a-zA-Z0-9]{24,}`
-* **AWS Access Key ID**: `AKIA[0-9A-Z]{16}`
-* **GitHub Personal Access Token**: `ghp_[a-zA-Z0-9]{36}`
-* **Generic Bearer Token**: `Bearer\s+[a-zA-Z0-9\-._~+/]{20,}`
-* **SendGrid API Key**: `SG\.[a-zA-Z0-9\-_]{22}\.[a-zA-Z0-9\-_]{43}`
-* **Slack Bot Token**: `xoxb-[0-9]{11,13}-[0-9]{11,13}-[a-zA-Z0-9]{24}`
+### Built-in Token Patterns
 
-### AI-Safe Redaction
+| Provider | Pattern |
+|---|---|
+| Stripe | `sk_(live\|test)_[a-zA-Z0-9]{24,}` |
+| AWS Access Key ID | `AKIA[0-9A-Z]{16}` |
+| GitHub Personal Access Token | `ghp_[a-zA-Z0-9]{36}` |
+| Generic Bearer Token | `Bearer\s+[a-zA-Z0-9\-._~+/]{20,}` |
+| SendGrid API Key | `SG\.[a-zA-Z0-9\-_]{22}\.[a-zA-Z0-9\-_]{43}` |
+| Slack Bot Token | `xoxb-[0-9]{11,13}-[0-9]{11,13}-[a-zA-Z0-9]{24}` |
 
-To prevent exposed secrets from entering LLM context histories or being leaked to log streams, envtrap redacts outputs:
-* Secrets in streams are masked with their SHA-256 hash prefix: `[REDACTED: SHA256:e4b4eee7]`.
-* Leaks are logged to `.envtrap-report.json` in the current working directory.
+---
+
+## Scanning Details
+
+- **Exact string match** only at runtime (no runtime regex) — fast even on large payloads
+- **1 MB backpressure clamp**: only the first 1 MB of any content chunk is scanned
+- **TTL deduplication**: repeated `secret + channel` events within a 1.5-second window are silently dropped to prevent alert flooding
+
+---
+
+## AI-Safe Redaction
+
+envtrap never logs secret values. It uses SHA-256 fingerprinting:
+
+- **In terminal output**: `Bearer [REDACTED: SHA256:f23831a9]`
+- **In `.envtrap-report.json`**: full SHA-256 hex digest stored, raw value never written
 
 ```json
 [
   {
     "secretName": "STRIPE_SECRET_KEY",
-    "source": "file",
+    "source": "env",
     "channel": "network",
-    "context": "Outbound HTTPS Request Audited:\n  Destination Host: api.stripe.com\n...",
-    "sha256": "e4b4eee7d4a40e4ea77952754c76acd3338147b3f2888e82d57f5b9ccd7c6153",
+    "context": "Outbound HTTPS Request Audited:\n  Destination Host: attacker.com\n  ...",
+    "sha256": "baf2ae563873...",
     "timestamp": 1781335024545
   }
 ]
 ```
 
+---
+
+## Architecture
+
+```
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  envtrap CLI  (parent process)                                   │
+  │                                                                   │
+  │  ┌───────────────────────────┐  ┌───────────────────────────┐    │
+  │  │  MITM TLS Proxy           │  │  Stream Scanner           │    │
+  │  │  127.0.0.1:<random port>  │  │  (stdout + stderr pipes)  │    │
+  │  │  Scans HTTP/HTTPS traffic │  │  Scans + redacts output   │    │
+  │  └──────────────┬────────────┘  └───────────────────────────┘    │
+  └─────────────────┼───────────────────────────────────────────────┘
+                    │ HTTP_PROXY, HTTPS_PROXY, NODE_EXTRA_CA_CERTS
+                    │ NODE_OPTIONS="--import hooks.mjs"
+                    ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  Child Process  (your app)                                       │
+  │                                                                   │
+  │  ┌──────────────┐   ┌────────────────────────────────────────┐   │
+  │  │  Your Code   │   │  hooks.mjs  (injected via --import)    │   │
+  │  │  + npm deps  │   │                                        │   │
+  │  └──────┬───────┘   │  CJS: Module.prototype.require patch  │   │
+  │         │ import/   │  ESM: module.register() resolve hook  │   │
+  │         │ require   │                                        │   │
+  │         └──────────▶│  Wraps child_process + dns modules    │   │
+  │                      └────────────────────────────────────────┘   │
+  └─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## License
 
-MIT License. Run locally with zero telemetry.
+MIT License. Runs locally with zero telemetry.

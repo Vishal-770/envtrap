@@ -1,107 +1,161 @@
 ---
 title: "Runtime Interception"
-description: "How envtrap hooks into the Node.js runtime to intercept all outbound channels at execution time."
+description: "How envtrap hooks into the Node.js 18+ runtime to intercept every exfiltration channel at execution time."
 ---
 
 ## Overview
 
-envtrap runs your application inside a monitored child process context. It uses a combination of **local proxy routing**, **CommonJS monkey-patching**, and **ESM customization hooks** to intercept outbound leaks before they leave your process boundaries.
+envtrap wraps your process in a **monitored execution environment**. When you run `envtrap run node app.js`, it:
 
-This approach is fundamentally different from static analysis:
-
-| Approach | When | What It Sees |
-|---|---|---|
-| SAST | Build time | Source code patterns |
-| envtrap | **Runtime** | **Actual data in flight, actual destinations** |
+1. Spawns your `node` process as a **monitored child** with specially configured environment variables and Node.js options
+2. Starts an **in-process MITM TLS proxy** on `127.0.0.1` and routes all HTTP/HTTPS traffic through it
+3. Injects ESM customization hooks (`--import hooks.mjs`) that intercept `node:dns` and `node:child_process` for **both ESM and CommonJS**
+4. Pipes the child's `stdout` and `stderr` through a **scanner** in the parent envtrap process
+5. After the child exits, prints a **run summary** and writes a structured `.envtrap-report.json` report
 
 ---
 
-## How Interception Works
-
-When you run `envtrap run node app.js`, envtrap orchestrates the security boundaries through the following steps:
+## Architecture
 
 ```
-                  ┌──────────────────────────────────────────┐
-                  │          envtrap CLI (Spawner)           │
-                  └────────────────────┬─────────────────────┘
-                                       │
-                Spawns with proxy env variables + import hooks
-                                       │
-                                       ▼
-    ┌──────────────────────────────────────────────────────────────────────┐
-    │ Node.js Application Process (Child)                                  │
-    │                                                                      │
-    │  ┌────────────────────┐          ┌────────────────────────────────┐  │
-    │  │ Application Code   │─────────▶│ Patched Core Modules           │  │
-    │  │ & npm Dependencies │          │ (dns, child_process)           │  │
-    │  └────────────────────┘          └───────────────┬────────────────┘  │
-    │                                                  │                   │
-    │                                                  ▼                   │
-    │  ┌────────────────────┐          ┌────────────────────────────────┐  │
-    │  │ Streams & Outputs  │          │ Local MITM Proxy (127.0.0.1)   │  │
-    │  │ (stdout / stderr)  │          │ (Decrypts TLS Outbound HTTPS)  │  │
-    │  └─────────┬──────────┘          └───────────────┬────────────────┘  │
-    │            │                                     │                   │
-    └────────────┼─────────────────────────────────────┼───────────────────┘
-                 │ Pipes                               │ Requests
-                 ▼                                     ▼
-      ┌──────────────────────────────────────────────────────────────────┐
-      │                      envtrap Scanner Engine                      │
-      │   • Entropy Screening   • Pattern Checks   • Path Exclusions     │
-      └──────────────────────────────────────────────────────────────────┘
+  ┌────────────────────────────────────────────────────────────────────┐
+  │  envtrap CLI  (parent process — Node.js)                          │
+  │                                                                    │
+  │  ┌──────────────────────────┐  ┌────────────────────────────────┐ │
+  │  │  MITM Proxy              │  │  Stream Scanner                │ │
+  │  │  127.0.0.1:<random port> │  │  (stdout pipe + stderr pipe)   │ │
+  │  │                          │  │                                │ │
+  │  │  • HTTP CONNECT handler  │  │  • Scans every line/chunk      │ │
+  │  │  • TLS termination       │  │  • Redacts matched secrets     │ │
+  │  │  • Scan body+headers+URL │  │  • Kills child on block mode   │ │
+  │  │  • 403/502 on block      │  │                                │ │
+  │  └────────────┬─────────────┘  └────────────────────────────────┘ │
+  └───────────────┼────────────────────────────────────────────────────┘
+                  │ HTTP_PROXY / HTTPS_PROXY env vars
+                  │ NODE_EXTRA_CA_CERTS → envtrap-ca.crt
+                  │ NODE_OPTIONS="--import /dist/hooks.mjs"
+                  ▼
+  ┌────────────────────────────────────────────────────────────────────┐
+  │  Child Process  (your app — Node.js)                              │
+  │                                                                    │
+  │  ┌──────────────┐   ┌────────────────────────────────────────┐    │
+  │  │  Your Code   │   │  hooks.mjs  (injected via --import)    │    │
+  │  │  + npm deps  │   │                                        │    │
+  │  └──────┬───────┘   │  CJS:  Module.prototype.require patch  │    │
+  │         │           │  ESM:  module.register() resolve hook  │    │
+  │   import/require    │                                        │    │
+  │         │           │  Intercepts node:child_process and     │    │
+  │         └──────────▶│  node:dns for both module systems      │    │
+  │                     └────────────────────────────────────────┘    │
+  └────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1. HTTP/HTTPS Decryption (MITM Proxy)
-On startup, envtrap spawns an in-memory HTTP/HTTPS proxy server on `127.0.0.1` and points standard proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy`, `https_proxy`) to it. It also automatically sets `NODE_EXTRA_CA_CERTS` to point to our generated Root CA certificate.
-All outbound network calls are routed through this proxy, decrypted, scanned for matching secrets, and either blocked (returning a `403` or `502` response) or forwarded to the upstream server.
+---
 
-### 2. CommonJS Monkey-patching
-For applications or dependencies using CommonJS (`require()`), envtrap overrides `Module.prototype.require` inside the preload context.
-When code loads `child_process` (or `node:child_process`) or `dns` (or `node:dns`), envtrap returns wrapped versions of these modules to intercept calls.
+## Step 1 — In-Memory Certificate Authority
 
-### 3. ESM Loader Customization Hooks
-For modern ESM applications (`import`), envtrap registers Customization Hooks (`--import`) using Node's customization registry to hook module resolutions. It intercepts and redirects requests for `child_process` and `dns` to secure virtual module wrappers.
+Before spawning the child, envtrap generates a **2048-bit RSA Root CA entirely in RAM** using `node-forge`.
+
+- The **private key never leaves memory** and is never written to disk
+- Only the **public certificate PEM** is written to `os.tmpdir()/envtrap-ca.crt` (mode `0600`)
+- `NODE_EXTRA_CA_CERTS` is set to this cert path so the child Node.js process trusts envtrap's proxy
+- Domain-specific TLS certificates are **generated on-demand and cached in memory** per hostname
+
+On startup, envtrap attempts to install the Root CA into the OS system trust store:
+- **Linux (Debian/Ubuntu)**: copies to `/usr/local/share/ca-certificates/` and runs `update-ca-certificates`
+- **Linux (RHEL/Fedora)**: copies to `/etc/pki/ca-trust/source/anchors/` and runs `update-ca-trust`
+- **macOS**: runs `security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain`
+- **Windows**: runs `certutil -addstore -user root` (no UAC elevation required)
+
+<Note>
+  System CA injection is **skipped silently** if the process does not have root/administrator privileges. Only `NODE_EXTRA_CA_CERTS` (Node.js-only trust) is used in that case.
+</Note>
+
+On exit, envtrap removes the injected CA from the system trust store automatically.
 
 ---
 
-## Interception Channels
+## Step 2 — MITM TLS Proxy (`network` channel)
 
-### Outbound Network (`network`)
-* Decrypts HTTP/HTTPS requests in real-time.
-* Scans headers, path URLs, and bodies for matches of active secrets.
-* If a secret is matched and the mode is `"block"`, the request connection is terminated immediately.
+envtrap starts an HTTP server on `127.0.0.1` at a random OS-assigned port. All child process HTTP/HTTPS traffic is routed through it via standard proxy environment variables.
 
-### Subprocesses (`child_process`)
-* Intercepts `exec`, `execSync`, `spawn`, `spawnSync`, `fork`, `execFile`, and `execFileSync`.
-* Scans the environment variables (`options.env`) being passed to the child process.
-* If active secrets are inherited by the child environment, envtrap blocks execution or throws a synchronous error in `"block"` mode.
+**Plain HTTP requests** (`server.on('request')`):
+- Request body, headers, and URL are scanned for active secrets
+- If a secret is found and channel mode is `block`, envtrap responds with `403 Forbidden`
+- Otherwise the request is forwarded to the upstream server
 
-### Name Resolution (`dns`)
-* Hooks `lookup`, `resolve`, and all other host query promise endpoints.
-* Scans target hostnames for active secrets.
-* Scans subdomains using Shannon entropy to warn on possible DNS tunneling exfiltrations.
+**HTTPS requests** (`server.on('connect')` — CONNECT tunnel):
+- envtrap intercepts the `CONNECT` handshake
+- Generates (or retrieves from cache) a domain-specific TLS certificate signed by the Root CA
+- Impersonates the target server by creating an in-memory `tls.Server`
+- Decrypts the plaintext payload and scans it for secrets
+- If mode is `block`, destroys the connection immediately
+- Otherwise establishes an upstream TLS socket and forwards data bidirectionally
+- **Maximum payload buffered for scanning**: 1 MB (larger payloads are scanned in the first 1 MB only)
 
-### Standard Outputs (`stdout` / `stderr`)
-* Intercepts writes to standard output and error streams.
-* Output containing active secrets is redacted to `[REDACTED: SHA256:<hash>]`.
-* In `"block"` mode, detecting a leak terminates the process via `SIGTERM` immediately.
+Domains listed in `exclusions.domains` **bypass all scanning** — their connections are forwarded directly without inspection.
 
 ---
 
-## Preload Script Setup
+## Step 3 — ESM + CJS Module Hooks (`child_process` and `dns` channels)
 
-The hooks are automatically configured by envtrap spawner via:
+The `hooks.mjs` file is injected into the child process via `NODE_OPTIONS="--import hooks.mjs"`. It runs before any user code and sets up two parallel interception paths:
 
-```bash
-NODE_OPTIONS="--import /path/to/envtrap/dist/hooks.mjs"
-```
+### CommonJS (`require()`) — `Module.prototype.require` patch
 
-The hooks run **synchronously before any user code is executed**, guaranteeing that all core modules are safely wrapped before dependencies load.
+Overrides `Module.prototype.require` so that when any CJS module calls `require('child_process')`, `require('node:child_process')`, `require('dns')`, or `require('node:dns')`, it receives a **wrapped module object** instead of the native one.
+
+### ESM (`import`) — `module.register()` Customization Hooks
+
+Registers a custom `resolve` hook via `module.register(import.meta.url)`. When any ESM `import 'child_process'` or `import 'dns'` is detected, the hook redirects to internal virtual URLs (`envtrap:child_process` and `envtrap:dns`) and injects wrapped implementations through the `load` hook.
+
+### What the wrappers intercept
+
+**`child_process` wrapper** intercepts:
+- `spawn`, `spawnSync`
+- `exec`, `execSync`
+- `execFile`, `execFileSync`
+- `fork`
+
+For every call, if `options.env` is present, each key in `options.env` is checked against the **active secrets map** (loaded from `__ENVTRAP_SECRETS_MAP__` env var). If a match is found:
+- Reports to the parent via `stderr`: `[envtrap] Child process leak: secret "KEY" passed to: COMMAND`
+- In `block` mode: throws a synchronous `Error` before any OS fork occurs
+
+**`dns` wrapper** intercepts:
+- `lookup`, `resolve`, `resolve4`, `resolve6`, `resolveAny`
+- `resolveCname`, `resolveMx`, `resolveNaptr`, `resolveNs`, `resolvePtr`, `resolveSoa`, `resolveSrv`, `resolveTxt`
+- All promise equivalents via `dns.promises.*`
+
+For every resolution hostname:
+1. **Secret match**: If the hostname contains any active secret value, reports the leak and throws synchronously in `block` mode
+2. **High-entropy DNS tunneling**: Splits the hostname on `.` and checks each subdomain label — if any label has length ≥ `entropyMinLength` and Shannon entropy ≥ `entropyThreshold`, a tunneling warning is emitted
 
 ---
 
-## Path Exclusions Handling
+## Step 4 — stdout / stderr Stream Scanning
 
-If an operation originates from a path specified in `exclusions.paths` (checked using stack tracing):
-* **Subprocess & DNS**: Suppresses detections/warnings.
-* **Streams (stdout/stderr)**: Pre-redacts any output to `[REDACTED: PATH_EXCLUDED]` inside the hook before it is written to the pipe, preventing the outer spawner from raising alarms.
+The child process is spawned with `stdio: ['inherit', 'pipe', 'pipe']`. The parent envtrap process reads every chunk from both streams.
+
+**For each chunk:**
+1. The content is scanned against all loaded secrets for exact string matches
+2. If a match is found, `flag()` is called (alert printed, JSONL log written)
+3. All known secret values are **redacted** in the output: replaced with `[REDACTED: SHA256:<first 8 hex chars>]` before being written to the parent's stdout/stderr
+4. In `block` mode, the child is sent `SIGTERM` immediately
+
+**Path exclusions and pre-redaction in the hook:**
+The `hooks.mjs` also overrides `process.stdout.write` and `process.stderr.write` inside the child process. Before writing to the pipe, it checks if the calling file (via stack trace) matches any glob in `exclusions.paths`. If it does, the chunk is pre-redacted to `[REDACTED: PATH_EXCLUDED]`, meaning the parent's scanner sees only the sanitized output and no alert is raised.
+
+---
+
+## Step 5 — Run Summary and Leak Report
+
+After the child process exits:
+- The terminal prints a **run summary** grouped by channel showing leak count and secret names
+- A structured **`.envtrap-report.json`** file is written to the current working directory containing all events in machine-readable JSON
+- If a `logFile` was configured, all events were already appended in JSONL format during the run
+- The system CA certificate is removed from the OS trust store
+
+Exit code behavior:
+- `0` — Child exited normally with no blocks triggered
+- `1` — A `block`-mode detection caused the child to be killed, or the child itself exited with code 1
+- The child's own exit code is forwarded if no block occurred

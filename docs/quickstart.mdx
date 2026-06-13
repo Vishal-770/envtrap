@@ -11,113 +11,159 @@ description: "Get envtrap protecting your Node.js app in under 60 seconds."
 
 ## Prerequisites
 
-- Node.js **18+**
+- Node.js **18.0.0 or later** (ESM customization hooks require Node 18+)
 - npm or pnpm
 
 ## Step 1 — Install
 
-Install the `envtrap` CLI globally:
+Install `envtrap` globally:
 
 ```bash
 npm install -g envtrap
 ```
 
-Or use it without installing via npx:
+Or use via npx without installing:
 
 ```bash
 npx envtrap run node app.js
 ```
 
+Or install as a dev dependency:
+
+```bash
+npm install --save-dev envtrap
+```
+
 ## Step 2 — Run your app through envtrap
 
-Simply prefix your existing start command with `envtrap run`:
+Prefix your existing start command with `envtrap run`:
 
 ```bash
 # Before
 node app.js
 
-# After — protected
+# After — fully monitored
 envtrap run node app.js
 ```
 
 That's it. envtrap now:
-- Intercepts all outbound HTTPS requests
-- Scans stdout / stderr for secrets
-- Monitors child processes and DNS queries
+- Starts an in-memory MITM TLS proxy and routes all outbound HTTP/HTTPS through it
+- Scans stdout and stderr streams for secrets in real time
+- Intercepts all `child_process` spawns to check if secrets are passed via `options.env`
+- Intercepts all DNS lookups for exact secret matches and high-entropy subdomain patterns
 
-## Step 3 — Watch the terminal output
+## Step 3 — Read the startup output
 
-When envtrap detects a secret or suspicious channel, it prints a real-time alert directly to your terminal:
+On every run, envtrap prints a startup banner and configuration summary to stderr:
 
 ```
-envtrap terminal
-$ envtrap run node app.js
+  ℹ  [envtrap] Configuration loaded: envtrap.json
+  ℹ  [envtrap] Active monitoring channels:
+  ℹ  [envtrap]   - stdout: [WARN]
+  ℹ  [envtrap]   - stderr: [WARN]
+  ℹ  [envtrap]   - network: [BLOCK]
+  ℹ  [envtrap]   - child_process: [WARN]
+  ℹ  [envtrap]   - dns: [BLOCK]
 
-  BLOCKED
-  Channel:      HTTPS
-  Secret:       STRIPE_SECRET_KEY
-  Fingerprint:  SHA256:a4b4ecc7d4a4...
-  Destination:  api.attacker.com
-  Action:       Request terminated
+ ⚠  envtrap v2.0
+    Monitoring: node app.js
+    Channels: stdout/stderr · HTTPS MITM · child_process · ESM hooks
+```
+
+When a leak is detected:
+```
+ 🌐 SECRET LEAK DETECTED   2026-06-13T12:00:00.000Z
+────────────────────────────────────────────────────────────
+  Secret:  STRIPE_SECRET_KEY  (source: env)
+  Value:   [SHA256:baf2ae5634...]
+  Channel: 🌐  NETWORK
+  Context:
+    Outbound HTTPS Request Audited:
+    Destination Host: attacker.com
+    Request Line: POST /collect
+```
+
+After your app exits, envtrap prints a summary:
+```
+════════════════════════════════════════════════════════════
+  envtrap — Run Summary
+────────────────────────────────────────────────────────────
+  🚨  1 leak event(s) detected!
+
+  🌐  NETWORK: 1 leak(s)
+       → STRIPE_SECRET_KEY
+════════════════════════════════════════════════════════════
 ```
 
 ## Step 4 — (Optional) Create a config file
 
-For fine-grained control, create an `envtrap.json` in your project root:
+Create `envtrap.json` in your project root for fine-grained control:
 
 ```json
 {
   "channels": {
-    "stdout": "warn",
-    "stderr": "warn",
-    "network": "block",
+    "stdout":        "warn",
+    "stderr":        "warn",
+    "network":       "block",
     "child_process": "warn",
-    "dns": "block"
+    "dns":           "block"
   },
   "exclusions": {
     "domains": ["api.stripe.com", "api.openai.com"],
-    "paths": ["test/**"]
+    "paths":   ["test/**"]
   },
   "entropy": {
     "threshold": 3.5,
     "minLength": 12
-  }
+  },
+  "quiet":   false,
+  "logFile": "logs/envtrap.jsonl"
 }
 ```
 
+Validate your config:
+```bash
+envtrap check
+```
+
 <Tip>
-  Use `"warn"` mode for channels during development to log detections without blocking, then switch to `"block"` in production.
+  Use `"warn"` on all channels during development to observe traffic patterns. Switch `network` and `dns` to `"block"` before deploying to production.
 </Tip>
 
-## Step 5 — Integrate with package.json
-
-Add envtrap to your npm start script so every run is protected:
+## Step 5 — Add to package.json scripts
 
 ```json
 {
   "scripts": {
     "start": "envtrap run node app.js",
-    "dev": "envtrap run node --watch app.js"
+    "dev":   "envtrap run node --watch app.js"
   }
 }
 ```
 
 ## What Happens on Detection?
 
-| Channel | Action (in `block` mode) | Action (in `warn` mode) |
+| Channel | `"warn"` mode | `"block"` mode |
 |---|---|---|
-| `network` | Request terminated (via local MITM proxy) | Warning logged, request allowed |
-| `stdout` / `stderr` | Process terminated immediately | Output redacted, warning logged |
-| `child_process` | Subprocess spawn blocked (throws error) | Warning logged, subprocess allowed |
-| `dns` | DNS query dropped (throws error) | Warning logged (or entropy warning shown) |
+| `network` | Leak logged, request forwarded | Leak logged, connection terminated (`403`/socket destroy) |
+| `stdout` | Secret redacted in output, child continues | Child process killed via `SIGTERM` |
+| `stderr` | Secret redacted in output, child continues | Child process killed via `SIGTERM` |
+| `child_process` | Leak logged via stderr, spawn proceeds | Synchronous `Error` thrown, no OS fork |
+| `dns` | Leak logged, lookup proceeds | Synchronous `Error` thrown, no DNS packet sent |
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="How It Works" icon="book-open" href="/how-it-works/runtime-interception">
-    Learn about runtime interception internals.
+    Deep-dive into MITM proxy, ESM hooks, and CJS patching.
   </Card>
   <Card title="Configuration" icon="gear" href="/configuration/envtrap-json">
-    Explore all configuration options.
+    Full reference for every envtrap.json field.
+  </Card>
+  <Card title="Attack Surfaces" icon="shield" href="/how-it-works/attack-surfaces">
+    Understand the five channels envtrap monitors.
+  </Card>
+  <Card title="CLI Reference" icon="code" href="/api-reference/endpoint">
+    All CLI commands and flags.
   </Card>
 </CardGroup>

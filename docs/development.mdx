@@ -26,14 +26,15 @@ The project is structured as a pnpm monorepo:
 envtrap/
 ├── package/          # Core envtrap security agent npm package
 │   ├── src/          # TypeScript source code
-│   │   ├── index.ts      # Spawner, CLI orchestrator, spawner process logic
-│   │   ├── hooks.mjs     # ESM customization hooks & CommonJS require() overrides
-│   │   ├── config.ts     # envtrap.json schema parser & validator
-│   │   ├── ca.ts         # In-memory X.509 Certificate Authority
-│   │   ├── proxy.ts      # MITM TLS HTTP/HTTPS proxy server
-│   │   ├── scanner.ts    # Stateful scanning engine and TTL dedup cache
-│   │   ├── fingerprint.ts# Shannon entropy & token matchers (looksLikeSecret)
-│   │   └── reporter.ts   # Output logger, redact printer, JSONL log writer
+│   │   ├── index.ts      # CLI entry point: commander commands, secret loader, child spawner
+│   │   ├── hooks.mjs     # ESM customization hooks & CommonJS Module.prototype.require patch
+│   │   ├── config.ts     # envtrap.json schema validator, loader, and deepMerge logic
+│   │   ├── types.ts      # Shared TypeScript interfaces (Secret, LeakEvent, ScanResult, etc.)
+│   │   ├── ca.ts         # In-memory 2048-bit RSA Root CA (node-forge), OS trust store inject/remove
+│   │   ├── proxy.ts      # MITM TLS HTTP/HTTPS proxy server (127.0.0.1, random port)
+│   │   ├── scanner.ts    # Stateful scan engine: 1MB clamp, 1.5s TTL dedup cache, block routing
+│   │   ├── fingerprint.ts# looksLikeSecret gate, shannonEntropy, scanContent, formatNetworkContext
+│   │   └── reporter.ts   # Terminal output: chalk alerts, run summary, JSONL log writer
 │   └── dist/         # Compiled JS and copied ESM hooks
 ├── test-server/      # Integration test suite (Express web app + mock TLS server)
 │   └── test/
