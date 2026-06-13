@@ -39,14 +39,18 @@ const MAX_BUFFER_BYTES = 1_048_576; // 1 MB
  *
  * @returns  A promise resolving to the bound port number
  */
-export function startProxy(verbose = false): Promise<number> {
+export function startProxy(verbose = false, allowedDomains = new Set<string>()): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = http.createServer();
 
     // Plain HTTP: forward unencrypted requests (rare, but handle gracefully)
     server.on('request', (req: http.IncomingMessage, res: http.ServerResponse) => {
       const targetUrl = req.url ?? '/';
-      if (verbose) info(`HTTP intercept: ${req.method} ${targetUrl}`);
+      const hostHeader = req.headers.host ?? '';
+      const hostname = hostHeader.split(':')[0];
+      const isAllowed = allowedDomains.has(hostname);
+
+      if (verbose) info(`HTTP intercept: ${req.method} ${targetUrl} (allowed: ${isAllowed})`);
 
       // Collect body for scanning
       const bodyChunks: Buffer[] = [];
@@ -55,20 +59,22 @@ export function startProxy(verbose = false): Promise<number> {
       });
 
       req.on('end', () => {
-        const body = Buffer.concat(bodyChunks).toString('utf-8');
-        if (body) {
-          scan(body, 'network');
-        }
+        if (!isAllowed) {
+          const body = Buffer.concat(bodyChunks).toString('utf-8');
+          if (body) {
+            scan(body, 'network');
+          }
 
-        // Also scan headers
-        const headerStr = JSON.stringify(req.headers);
-        scan(headerStr, 'network');
-        scan(targetUrl, 'network');
+          // Also scan headers
+          const headerStr = JSON.stringify(req.headers);
+          scan(headerStr, 'network');
+          scan(targetUrl, 'network');
+        }
       });
 
       // Forward request
       const options: https.RequestOptions = {
-        host: req.headers.host ?? '',
+        host: hostHeader,
         path: req.url,
         method: req.method,
         headers: req.headers,
@@ -96,7 +102,7 @@ export function startProxy(verbose = false): Promise<number> {
 
       if (verbose) info(`CONNECT intercept: ${targetHost}`);
 
-      handleConnect(hostname, upstreamPort, clientSocket, head, verbose).catch((err: Error) => {
+      handleConnect(hostname, upstreamPort, clientSocket, head, verbose, allowedDomains).catch((err: Error) => {
         warn(`CONNECT handler error for ${targetHost}: ${err.message}`);
         safeDestroySocket(clientSocket);
       });
@@ -126,6 +132,7 @@ async function handleConnect(
   clientSocket: net.Socket,
   head: Buffer,
   verbose: boolean,
+  allowedDomains: Set<string>,
 ): Promise<void> {
   // Step 1: generate (or retrieve cached) domain cert for the target
   let creds: { keyPem: string; certPem: string };
@@ -155,7 +162,7 @@ async function handleConnect(
 
   // Step 4: When the TLS server gets a decrypted connection, buffer the payload
   tlsServer.on('secureConnection', (tlsSocket: tls.TLSSocket) => {
-    interceptTlsSocket(tlsSocket, hostname, upstreamPort, verbose);
+    interceptTlsSocket(tlsSocket, hostname, upstreamPort, verbose, allowedDomains);
   });
 
   // Step 5: Pipe the raw client TCP socket into the fake TLS server.
@@ -180,10 +187,12 @@ function interceptTlsSocket(
   hostname: string,
   upstreamPort: number,
   verbose: boolean,
+  allowedDomains: Set<string>,
 ): void {
   const requestChunks: Buffer[] = [];
   let totalBytes = 0;
   let upstreamSocket: tls.TLSSocket | null = null;
+  const isAllowed = allowedDomains.has(hostname);
 
   tlsSocket.on('data', (chunk: Buffer) => {
     // Buffer chunks up to 1MB for scanning
@@ -191,14 +200,16 @@ function interceptTlsSocket(
       requestChunks.push(chunk);
       totalBytes += chunk.length;
 
-      // Scan cumulative request payload immediately (TTL dedup handles repeated alerts)
-      const payload = Buffer.concat(requestChunks).toString('utf-8');
-      scan(payload, 'network');
+      // Scan cumulative request payload immediately (unless allowed)
+      if (!isAllowed) {
+        const payload = Buffer.concat(requestChunks).toString('utf-8');
+        scan(payload, 'network');
+      }
     }
 
     // Lazily establish the upstream connection on first data
     if (!upstreamSocket) {
-      upstreamSocket = connectUpstream(hostname, upstreamPort, tlsSocket, verbose);
+      upstreamSocket = connectUpstream(hostname, upstreamPort, tlsSocket, verbose, isAllowed);
     }
 
     if (upstreamSocket && !upstreamSocket.destroyed) {
@@ -207,8 +218,8 @@ function interceptTlsSocket(
   });
 
   tlsSocket.on('end', () => {
-    // Scan the buffered request payload
-    if (requestChunks.length > 0) {
+    // Scan the buffered request payload (unless allowed)
+    if (!isAllowed && requestChunks.length > 0) {
       const payload = Buffer.concat(requestChunks).toString('utf-8');
       scan(payload, 'network');
     }
@@ -230,6 +241,7 @@ function connectUpstream(
   port: number,
   downstreamSocket: tls.TLSSocket,
   verbose: boolean,
+  isAllowed: boolean,
 ): tls.TLSSocket {
   const upstream = tls.connect(
     {
@@ -245,9 +257,11 @@ function connectUpstream(
 
   // Pipe upstream response back downstream
   upstream.on('data', (chunk: Buffer) => {
-    // Scan the response too — secrets can be in API responses
-    const responseStr = chunk.toString('utf-8');
-    scan(responseStr, 'network');
+    // Scan the response too (unless allowed)
+    if (!isAllowed) {
+      const responseStr = chunk.toString('utf-8');
+      scan(responseStr, 'network');
+    }
 
     if (!downstreamSocket.destroyed) {
       downstreamSocket.write(chunk);

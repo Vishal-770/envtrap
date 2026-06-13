@@ -127,6 +127,23 @@ async function runCommand(
   const secrets = loadSecrets(options.envFile);
   setSecrets(secrets);
 
+  // Load envtrap.json config allowed domains if present
+  let allowedDomains = new Set<string>();
+  const configPath = path.resolve(process.cwd(), 'envtrap.json');
+  if (fs.existsSync(configPath)) {
+    try {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (config.exclusions && Array.isArray(config.exclusions.domains)) {
+        allowedDomains = new Set(config.exclusions.domains);
+        if (options.verbose) {
+          info(`Loaded ${allowedDomains.size} allowed domains from envtrap.json`);
+        }
+      }
+    } catch (err) {
+      warn(`Failed to parse envtrap.json: ${(err as Error).message}`);
+    }
+  }
+
   if (options.verbose) {
     info(`Loaded ${secrets.length} secrets from env/file sources`);
   }
@@ -146,7 +163,7 @@ async function runCommand(
       info(`Root CA written to: ${caCertPath}`);
     }
 
-    proxyPort = await startProxy(options.verbose);
+    proxyPort = await startProxy(options.verbose, allowedDomains);
 
     if (options.verbose) {
       info(`MITM proxy listening on 127.0.0.1:${proxyPort}`);
