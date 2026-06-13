@@ -1,30 +1,149 @@
 ---
 title: "CLI Reference"
-description: "Reference guide for envtrap command parameters and options"
+description: "Complete reference for the envtrap command-line interface."
 ---
-
-The envtrap CLI provides commands to wrap application processes and inspect potential leak avenues.
 
 ## `envtrap run`
 
-Wraps a child process execution under envtrap's runtime scanning layer.
+The primary command. Wraps a Node.js process with envtrap's runtime interceptors.
 
 ```bash
-envtrap run [options] -- <command>
+envtrap run [options] <command> [args...]
 ```
 
-### Option Flags
+### Arguments
 
-| Option | Type | Description | Default |
-| :--- | :--- | :--- | :--- |
-| `--verbose` | `boolean` | Enable verbose logger output | `false` |
-| `--config` | `string` | Specify path to configuration schema | `envtrap.json` |
-| `--warn-only` | `boolean` | Trigger console alerts instead of terminating leaks | `false` |
+| Argument | Description |
+|---|---|
+| `command` | The command to run (typically `node`) |
+| `args` | Arguments to pass to the command |
 
-### Example Execution
+### Options
 
-Run a local server with custom warning rules:
+| Flag | Default | Description |
+|---|---|---|
+| `--config <path>` | `./envtrap.json` | Path to config file |
+| `--mode <mode>` | `block` | Override global mode (`block` or `warn`) |
+| `--no-https` | — | Disable HTTPS interception |
+| `--no-subprocess` | — | Disable subprocess monitoring |
+| `--no-dns` | — | Disable DNS interception |
+| `--no-stdout` | — | Disable stdout/stderr scanning |
+| `--no-entropy` | — | Disable entropy analysis |
+| `--log-level <level>` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
+| `--log-format <fmt>` | `pretty` | Log format (`pretty` or `json`) |
+| `--log-file <path>` | — | Write logs to a file |
+
+### Examples
+
+**Basic usage:**
+```bash
+envtrap run node app.js
+```
+
+**With arguments:**
+```bash
+envtrap run node --max-old-space-size=4096 server.js --port 3000
+```
+
+**Using a custom config:**
+```bash
+envtrap run --config ./config/envtrap.prod.json node app.js
+```
+
+**Warn-only mode (no blocking):**
+```bash
+envtrap run --mode warn node app.js
+```
+
+**With JSON logging to file:**
+```bash
+envtrap run --log-format json --log-file /var/log/envtrap.log node app.js
+```
+
+**Disable specific channels:**
+```bash
+envtrap run --no-subprocess --no-dns node app.js
+```
+
+---
+
+## `envtrap check`
+
+Validates your `envtrap.json` configuration file.
 
 ```bash
-envtrap run --config=./security/custom.json --warn-only -- npm start
+envtrap check [--config <path>]
 ```
+
+**Output on success:**
+```
+✓ envtrap.json is valid
+  mode: block
+  channels: https, subprocess, dns, stdout, entropy
+  exclusions: 3 domains, 0 envVars, 2 patterns
+```
+
+**Output on error:**
+```
+✗ envtrap.json is invalid
+  Error: channels.subprocess.allowList must be an array of strings
+```
+
+---
+
+## `envtrap scan`
+
+Scan a string or file for secrets without running a process. Useful for pre-commit hooks or CI pipelines.
+
+```bash
+# Scan a string
+envtrap scan --string "sk_live_abc123"
+
+# Scan a file
+envtrap scan --file .env
+
+# Scan stdin
+cat .env | envtrap scan --stdin
+```
+
+**Output:**
+```
+DETECTED | Pattern: Stripe Secret Key
+Value fingerprint: SHA256:a4b4ecc7d4a4...
+Severity: critical
+```
+
+---
+
+## `envtrap version`
+
+Print the installed envtrap version.
+
+```bash
+envtrap version
+# → envtrap v0.1.0
+```
+
+---
+
+## `envtrap help`
+
+Print help information.
+
+```bash
+envtrap help
+envtrap help run
+envtrap help scan
+```
+
+---
+
+## Exit Codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Process exited normally (no detections, or mode=warn) |
+| `1` | A secret was detected and blocked (mode=block) |
+| `2` | Configuration error |
+| `3` | envtrap internal error |
+| Forwarded | The wrapped process's own exit code (when no block occurs) |

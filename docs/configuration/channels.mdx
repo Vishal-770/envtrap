@@ -1,0 +1,165 @@
+---
+title: "Channels"
+description: "Configure each interception channel individually — enable/disable, set per-channel mode, and customize allow-lists."
+---
+
+## What Are Channels?
+
+A **channel** in envtrap represents a specific data-exfiltration path that can carry secrets out of your Node.js process. envtrap intercepts all five channels by default.
+
+## Channel Configuration Format
+
+Each channel can be configured as:
+
+**Boolean shorthand** (enable/disable with default settings):
+```json
+{ "channels": { "https": true } }
+```
+
+**Object** (full per-channel configuration):
+```json
+{
+  "channels": {
+    "https": {
+      "enabled": true,
+      "mode": "block"
+    }
+  }
+}
+```
+
+---
+
+## HTTPS Channel
+
+Intercepts all outbound `http` and `https` requests.
+
+```json
+{
+  "channels": {
+    "https": {
+      "enabled": true,
+      "mode": "block",
+      "inspectBody": true,
+      "inspectHeaders": true,
+      "allowedDomains": ["api.stripe.com", "api.openai.com"]
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` | Enable/disable HTTPS interception |
+| `mode` | `"block" \| "warn"` | global `mode` | Per-channel enforcement mode |
+| `inspectBody` | `boolean` | `true` | Scan request body for secrets |
+| `inspectHeaders` | `boolean` | `true` | Scan request headers for secrets |
+| `allowedDomains` | `string[]` | `[]` | Domains to skip inspection for |
+
+---
+
+## Subprocess Channel
+
+Intercepts all child process creation calls (`exec`, `spawn`, `fork`, etc.).
+
+```json
+{
+  "channels": {
+    "subprocess": {
+      "enabled": true,
+      "mode": "block",
+      "allowList": ["git", "node", "npm", "pnpm", "tsc"]
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` | Enable/disable subprocess monitoring |
+| `mode` | `"block" \| "warn"` | global `mode` | Per-channel enforcement mode |
+| `allowList` | `string[]` | `[]` | Command name prefixes to allow without inspection |
+
+<Warning>
+  If `allowList` is empty, all subprocess commands are inspected and those carrying secrets are blocked. Add your legitimate commands to prevent false positives.
+</Warning>
+
+---
+
+## DNS Channel
+
+Intercepts DNS resolver queries to detect tunneling exfiltration.
+
+```json
+{
+  "channels": {
+    "dns": {
+      "enabled": true,
+      "mode": "block",
+      "maxLabelLength": 40,
+      "entropyThreshold": 4.5
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` | Enable/disable DNS monitoring |
+| `mode` | `"block" \| "warn"` | global `mode` | Per-channel enforcement mode |
+| `maxLabelLength` | `number` | `40` | Max length of a DNS label before flagging |
+| `entropyThreshold` | `number` | `4.5` | Entropy threshold for DNS labels |
+
+---
+
+## stdout Channel
+
+Intercepts writes to `process.stdout` and `process.stderr`.
+
+```json
+{
+  "channels": {
+    "stdout": {
+      "enabled": true,
+      "mode": "warn",
+      "redact": true
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` | Enable/disable stdout scanning |
+| `mode` | `"block" \| "warn"` | global `mode` | Per-channel enforcement mode |
+| `redact` | `boolean` | `true` | Replace matched secrets with `[REDACTED:ENVTRAP]` |
+
+<Note>
+  When `mode` is `"block"` on the stdout channel, the write is dropped entirely. Use `"warn"` with `redact: true` to allow logs through with secrets scrubbed.
+</Note>
+
+---
+
+## Entropy Channel
+
+Cross-channel entropy analysis applied to all intercepted data.
+
+```json
+{
+  "channels": {
+    "entropy": {
+      "enabled": true,
+      "threshold": 5.0,
+      "minLength": 16,
+      "mode": "warn"
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` | Enable/disable entropy detection |
+| `threshold` | `number` | `5.0` | Shannon entropy score cutoff |
+| `minLength` | `number` | `16` | Minimum string length to evaluate |
+| `mode` | `"block" \| "warn"` | `"warn"` | Enforcement for entropy-only matches |

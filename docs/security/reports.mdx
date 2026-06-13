@@ -1,0 +1,81 @@
+---
+title: "Security Reports"
+description: "Responsible disclosure policy and how to report security vulnerabilities in envtrap."
+---
+
+## Responsible Disclosure
+
+The envtrap team takes security vulnerabilities seriously. If you discover a security issue in envtrap itself, please follow responsible disclosure practices.
+
+<Warning>
+  **Do not open a public GitHub issue for security vulnerabilities.** This could expose the vulnerability to malicious actors before a fix is available.
+</Warning>
+
+## How to Report
+
+Send a detailed vulnerability report to:
+
+```
+security@envtrap.dev
+```
+
+Please include:
+
+1. **Description** — A clear description of the vulnerability
+2. **Impact** — What an attacker could achieve by exploiting this
+3. **Steps to reproduce** — Minimal reproduction steps or a proof-of-concept
+4. **Affected versions** — Which versions of envtrap are affected
+5. **Suggested fix** (optional) — Any ideas you have for a fix
+
+## What to Expect
+
+| Timeline | Action |
+|---|---|
+| **24 hours** | Acknowledgement of your report |
+| **72 hours** | Initial severity assessment |
+| **7–14 days** | Fix developed (for critical/high issues) |
+| **30 days** | Fix released and CVE assigned (if applicable) |
+| **After patch** | Public disclosure coordinated with reporter |
+
+## Scope
+
+The following are **in scope** for security reports:
+
+- envtrap CLI (`envtrap run`, config parsing)
+- Runtime interceptors (https, subprocess, dns, stdout)
+- Secret detection engine (false negatives — secrets that should be caught but aren't)
+- Configuration parsing vulnerabilities
+- Privilege escalation via envtrap's process model
+
+The following are **out of scope**:
+
+- Vulnerabilities in your application code (envtrap protects against these, not from them)
+- Vulnerabilities in npm packages that envtrap depends on (please report to those maintainers)
+- Social engineering
+- Physical access attacks
+
+## Bug Bounty
+
+We currently operate a goodwill-based disclosure program. While we do not offer monetary rewards, we will:
+
+- Credit you in the release notes (unless you prefer anonymity)
+- Add your name to our [Security Hall of Fame](#hall-of-fame)
+- Provide a signed letter of acknowledgement upon request
+
+## Hall of Fame
+
+We thank the following researchers for responsible disclosure:
+
+| Researcher | Issue | Date |
+|---|---|---|
+| *Your name here* | Be the first to report! | — |
+
+## PGP Key
+
+For sensitive reports, you may encrypt your email using our PGP key:
+
+```
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+[Key will be published with first release]
+-----END PGP PUBLIC KEY BLOCK-----
+```

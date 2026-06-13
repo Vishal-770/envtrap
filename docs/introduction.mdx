@@ -1,27 +1,94 @@
 ---
-title: Introduction
-description: "Welcome to the envtrap documentation"
+title: "Introduction"
+description: "envtrap — Runtime security for Node.js. Block secret exfiltration before it leaves your process."
 ---
 
-envtrap is a zero-configuration runtime security agent that intercepts, blocks, and flags the accidental exfiltration of secrets across stdout/stderr, network traffic, subprocesses, DNS, and entropy patterns in Node.js applications.
+<img
+  className="block"
+  src="/logo.png"
+  alt="envtrap logo"
+  style={{ width: "140px", marginBottom: "2rem" }}
+/>
+
+# What is envtrap?
+
+**envtrap** is an open-source runtime security tool for **Node.js** applications. It wraps your process and intercepts every outbound channel in real time — before secrets, credentials, or sensitive environment variables can be exfiltrated by malicious code, compromised packages, or insider threats.
+
+Unlike static analysis tools (SAST) that scan source code at build time, envtrap operates **at execution time** inside the Node.js runtime — inspecting actual traffic, child processes, DNS queries, and stdout/stderr output as they happen.
+
+## The Problem
+
+Modern Node.js applications are rich with sensitive data:
+
+- `STRIPE_SECRET_KEY`, `DATABASE_URL`, `OPENAI_API_KEY` …
+- Thousands of transitive npm dependencies with supply-chain risk
+- No runtime visibility into _what_ leaves your process
+
+A single compromised package — even a deep transitive dependency — can silently exfiltrate your secrets. Traditional security tools won't catch this because:
+
+| Tool | What it does | What it misses |
+|---|---|---|
+| SAST / linting | Scans source code for patterns | Runtime behavior, dynamic secrets |
+| Secrets scanners | Finds secrets committed to git | Secrets only present at runtime |
+| WAFs / Firewalls | Filters inbound traffic | Outbound, process-level egress |
+| EDR / AV | Detects known malware | Legitimate runtime exfiltration |
+
+## The Solution
+
+envtrap solves this by wrapping your Node.js process with a **zero-instrumentation runtime guard** that:
+
+- 🔒 Intercepts HTTPS / HTTP outbound requests
+- 🔒 Monitors stdout / stderr for secret patterns
+- 🔒 Blocks unauthorized child processes and `execSync` calls
+- 🔒 Detects DNS tunneling exfiltration attempts
+- 🔒 Scans for high-entropy strings indicating credential leakage
+
+```bash
+# Before: vulnerable
+node app.js
+
+# After: protected
+envtrap run node app.js
+```
+
+That's it. No code changes. No SDK to install. No agent to manage.
 
 ## Key Features
 
-- **Zero Configuration**: Works out of the box. No setup. No source code edits.
-- **In-Memory CA Protection**: No private keys are written to disk. Always secure.
-- **Real-Time Interception**: Hooks into the runtime directly, blocking threats before data hits the socket layer.
-- **AI-Safe by Design**: Logs non-reversible hashes instead of raw secrets, securing outputs for Claude Code, Copilot, and LLM histories.
-- **100% Local Execution**: Runs entirely inside your local process space. Zero external telemetry.
+<CardGroup cols={2}>
+  <Card title="Zero Instrumentation" icon="bolt">
+    Drop envtrap in front of any `node` command. No code changes required.
+  </Card>
+  <Card title="HTTPS Interception" icon="shield">
+    Inspect outbound HTTPS bodies for secrets before they leave the process.
+  </Card>
+  <Card title="Entropy Detection" icon="chart-bar">
+    Shannon entropy analysis catches high-entropy credential strings.
+  </Card>
+  <Card title="DNS Tunneling Guard" icon="network-wired">
+    Detect and block DNS-based exfiltration via encoded subdomains.
+  </Card>
+  <Card title="Subprocess Control" icon="terminal">
+    Allow-list child processes; block unauthorized shell commands.
+  </Card>
+  <Card title="Configurable Policy" icon="sliders">
+    Fine-tune blocking vs. warning per channel via `envtrap.json`.
+  </Card>
+</CardGroup>
 
-## Get Started
-
-Follow the Quickstart guide to get envtrap installed and guarding your applications in under two minutes.
+## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Quickstart Guide" icon="bolt" href="/quickstart">
-    Install envtrap and run your Node.js application under real-time protection.
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get envtrap running in under 60 seconds.
   </Card>
-  <Card title="CLI Reference" icon="terminal" href="/api-reference/endpoint">
-    Explore all CLI command arguments and process configuration options.
+  <Card title="How It Works" icon="book-open" href="/how-it-works/runtime-interception">
+    Deep dive into the runtime interception architecture.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/envtrap-json">
+    Customize channels, exclusions, and policies.
+  </Card>
+  <Card title="CLI Reference" icon="code" href="/api-reference/endpoint">
+    Full reference for the `envtrap` CLI.
   </Card>
 </CardGroup>

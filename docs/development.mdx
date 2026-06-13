@@ -1,45 +1,103 @@
 ---
 title: "Development Guide"
-description: "How to configure envtrap rules and simulate leaks locally"
+description: "Set up the envtrap development environment and contribute to the project."
 ---
 
-While envtrap requires zero configuration, you can customize interceptor channels, exclusions, and rules using an optional `envtrap.json` configuration file at the root of your repository.
+## Clone the Repository
 
-## Custom Configuration
+```bash
+git clone https://github.com/your-org/envtrap.git
+cd envtrap
+```
 
-Create an `envtrap.json` file in your project:
+## Install Dependencies
 
-```json
-{
-  "excludePaths": [
-    "**/node_modules/**",
-    "**/tests/**"
-  ],
-  "channels": {
-    "stdout": "block",
-    "https": "block",
-    "dns": "warn",
-    "subprocess": "block"
-  }
+envtrap uses **pnpm** as its package manager:
+
+```bash
+pnpm install
+```
+
+## Project Structure
+
+```
+envtrap/
+├── cli/              # CLI entrypoint and argument parsing
+├── interceptors/     # Runtime interceptors (https, dns, subprocess, etc.)
+├── scanner/          # Secret pattern matching & entropy analysis
+├── policy/           # Policy engine (block vs. warn logic)
+├── landing-page/     # Next.js marketing site
+└── docs/             # Mintlify documentation (you are here)
+```
+
+## Running Tests
+
+```bash
+pnpm test
+```
+
+Tests cover:
+- Pattern matching for known secret formats (Stripe, AWS, GCP, GitHub, etc.)
+- Entropy scoring thresholds
+- Channel interception correctness
+- Policy enforcement (block vs. warn)
+
+## Building
+
+```bash
+pnpm build
+```
+
+## Running the Landing Page Locally
+
+```bash
+cd landing-page
+pnpm dev
+```
+
+The site will be available at `http://localhost:3000`.
+
+## Running the Docs Locally
+
+Install the Mintlify CLI:
+
+```bash
+npm install -g mintlify
+```
+
+Then start the dev server from the `docs/` directory:
+
+```bash
+cd docs
+mintlify dev
+```
+
+The docs will be available at `http://localhost:3000`.
+
+## Adding a New Interceptor
+
+1. Create a file in `interceptors/` (e.g., `interceptors/grpc.ts`)
+2. Implement the `Interceptor` interface:
+
+```typescript
+export interface Interceptor {
+  name: string;
+  attach(pid: number, policy: Policy): void;
+  detach(): void;
 }
 ```
 
-## Testing Your Setup
+3. Register it in `interceptors/index.ts`
+4. Add corresponding configuration support in `configuration/channels`
 
-You can test that envtrap is running and blocking exfiltrations by simulating a console log leak:
+## Submitting a PR
 
-```javascript
-// test-leak.js
-console.log("Mock Stripe Secret: sk_live_51NzabcXYZ999");
-```
+1. Fork the repository
+2. Create a branch: `git checkout -b feat/my-feature`
+3. Make your changes and add tests
+4. Run `pnpm test` and `pnpm lint`
+5. Submit a pull request with a clear description
 
-Execute this script under envtrap protection:
-
-```bash
-envtrap run node test-leak.js
-```
-
-You will see the terminal output intercepted, displaying:
-```text
-[envtrap] BLOCKED: stdout write intercepted. Secret pattern match detected.
-```
+<Note>
+  Please include a test case that demonstrates the interceptor correctly blocks a known exfiltration vector.
+</Note>
