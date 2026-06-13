@@ -20,16 +20,16 @@ export default function TerminalFlow() {
   return (
     <div className="w-full flex flex-col items-center py-4 select-none">
       
-      {/* 1. Sleek Terminal Mockup (Dark theme for authentic developer console contrast) */}
-      <div className="w-full max-w-[430px] bg-zinc-950 rounded-2xl border border-zinc-850 shadow-xl overflow-hidden font-mono text-xs md:text-sm leading-relaxed text-zinc-300 transition-all">
+      {/* 1. Sleek Terminal Mockup (Bauhaus styling: flat shadows, thick black borders, non-rounded edges) */}
+      <div className="w-full max-w-[430px] bg-zinc-950 rounded-none border-3 border-[#121212] shadow-[6px_6px_0px_#121212] overflow-hidden font-mono text-xs md:text-sm leading-relaxed text-zinc-300 transition-all">
         {/* Terminal Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-900 bg-zinc-950">
+        <div className="flex items-center justify-between px-5 py-3 border-b-2 border-[#121212] bg-[#F0C020] text-[#121212]">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+            <span className="w-2.5 h-2.5 bg-[#121212]" />
+            <span className="w-2.5 h-2.5 bg-[#1040C0]" />
+            <span className="w-2.5 h-2.5 bg-[#D02020]" />
           </div>
-          <div className="text-[10px] text-zinc-500 font-extrabold tracking-widest uppercase">envtrap CLI</div>
+          <div className="text-[10px] font-black tracking-widest uppercase">envtrap CLI</div>
           <div className="w-12" /> {/* spacer */}
         </div>
 
@@ -44,15 +44,15 @@ export default function TerminalFlow() {
           </div>
 
           {/* Blocked Badge */}
-          <div className="flex items-center gap-1.5 bg-rose-950/30 border border-rose-900/40 rounded-md px-2.5 py-1 text-rose-450 w-fit">
-            <div className="w-3.5 h-3.5 rounded-full bg-rose-500 flex items-center justify-center text-zinc-950">
+          <div className="flex items-center gap-1.5 bg-[#D02020] border-2 border-[#121212] px-2.5 py-1 text-white w-fit shadow-[2px_2px_0px_#121212]">
+            <div className="w-3.5 h-3.5 bg-white flex items-center justify-center text-[#121212]">
               <X size={9} className="stroke-[3.5]" />
             </div>
-            <span className="font-extrabold tracking-wider text-[9px]">BLOCKED</span>
+            <span className="font-black tracking-wider text-[9px] uppercase">BLOCKED</span>
           </div>
 
           {/* Key-Value Details */}
-          <div className="grid grid-cols-[90px_1fr] gap-y-3.5 text-xs border-t border-zinc-900 pt-4 text-zinc-400">
+          <div className="grid grid-cols-[90px_1fr] gap-y-3.5 text-xs border-t-2 border-[#121212] pt-4 text-zinc-400">
             <span className="text-zinc-500 font-bold tracking-wide">Channel:</span>
             <span className="text-zinc-200 font-bold">HTTPS</span>
 
@@ -67,21 +67,21 @@ export default function TerminalFlow() {
             <span className="text-zinc-500 font-bold tracking-wide">Destination:</span>
             <span className="text-zinc-200 font-bold">api.attacker.com</span>
 
-            <span className="text-zinc-500 font-bold tracking-wide">Action:</span>
-            <span className="text-rose-400 font-black tracking-wide">Request terminated</span>
+            <span className="text-zinc-555 text-zinc-500 font-bold tracking-wide">Action:</span>
+            <span className="text-rose-455 font-black tracking-wide text-rose-400">Request terminated</span>
           </div>
         </div>
       </div>
 
       {/* 2. Dotted Connector from Terminal to Node.js App */}
-      <div className="h-10 w-0.5 border-l-2 border-dashed border-zinc-200 relative">
+      <div className="h-10 w-0.5 border-l-2 border-dashed border-[#121212] relative">
         {pulseActive && (
-          <div className="absolute top-0 -left-[5.5px] w-2.5 h-2.5 rounded-full bg-rose-500 shadow-md shadow-rose-500/25 animate-flow-down-1" />
+          <div className="absolute top-0 -left-[5.5px] w-2.5 h-2.5 bg-[#D02020] border border-[#121212] shadow-xs animate-flow-down-1" />
         )}
       </div>
 
-      {/* 3. Node.js Application Badge */}
-      <div className="flex items-center gap-2.5 bg-white border border-zinc-200 rounded-full px-5 py-2.5 shadow-sm text-xs font-bold text-zinc-800 z-10 hover:border-zinc-350 transition-colors duration-300">
+      {/* 3. Node.js Application Badge (Bauhaus square badge) */}
+      <div className="flex items-center gap-2.5 bg-white border-2 border-[#121212] px-5 py-2.5 shadow-[3px_3px_0px_#121212] text-xs font-black uppercase tracking-wider text-[#121212] z-10 hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_#121212] transition-all duration-200">
         <Image
           src="/nodejs.webp"
           alt="Node.js logo"
@@ -93,14 +93,14 @@ export default function TerminalFlow() {
       </div>
 
       {/* 4. Dotted Connector from Node.js Application to envtrap */}
-      <div className="h-10 w-0.5 border-l-2 border-dashed border-zinc-200 relative">
+      <div className="h-10 w-0.5 border-l-2 border-dashed border-[#121212] relative">
         {pulseActive && (
-          <div className="absolute top-0 -left-[5.5px] w-2.5 h-2.5 rounded-full bg-rose-500 shadow-md shadow-rose-500/25 animate-flow-down-2" />
+          <div className="absolute top-0 -left-[5.5px] w-2.5 h-2.5 bg-[#D02020] border border-[#121212] shadow-xs animate-flow-down-2" />
         )}
       </div>
 
-      {/* 5. envtrap Shield Badge */}
-      <div className="flex items-center gap-2.5 bg-white border border-zinc-250 border-zinc-200 rounded-full px-6 py-3 shadow-md text-xs font-bold text-zinc-950 z-10 hover:border-zinc-300 transition-colors duration-300">
+      {/* 5. envtrap Shield Badge (Bauhaus square badge) */}
+      <div className="flex items-center gap-2.5 bg-white border-2 border-[#121212] px-6 py-3 shadow-[4px_4px_0px_#121212] text-xs font-black uppercase tracking-wider text-[#121212] z-10 hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_#121212] transition-all duration-200">
         <div className="w-5 h-5 flex items-center justify-center relative">
           <Image
             src="/logo.png"
@@ -109,7 +109,7 @@ export default function TerminalFlow() {
             className="object-contain"
           />
         </div>
-        <span className="font-extrabold tracking-wide text-zinc-900">envtrap agent</span>
+        <span>envtrap agent</span>
       </div>
 
       {/* 6. Branching SVG Lines & Endpoints */}
@@ -123,12 +123,12 @@ export default function TerminalFlow() {
                 <g key={idx}>
                   <path
                     d={pathD}
-                    stroke="#e4e4e7"
-                    strokeWidth="0.8"
+                    stroke="#121212"
+                    strokeWidth="1.2"
                     strokeDasharray="2 2"
                   />
                   {pulseActive && (
-                    <circle r="0.8" fill="#f43f5e">
+                    <circle r="1.2" fill="#D02020">
                       <animateMotion
                         dur="1.2s"
                         path={pathD}
@@ -145,30 +145,30 @@ export default function TerminalFlow() {
           </svg>
         </div>
 
-        {/* 5 Destination Cards */}
+        {/* 5 Destination Cards (Bauhaus square cards) */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5 w-full max-w-3xl px-2">
           <FlowCard
-            icon={<Terminal size={14} className="text-zinc-800" />}
+            icon={<Terminal size={14} className="text-[#121212]" />}
             title="stdout / stderr"
             status="BLOCKED"
           />
           <FlowCard
-            icon={<Lock size={14} className="text-zinc-800" />}
+            icon={<Lock size={14} className="text-[#121212]" />}
             title="HTTPS Traffic"
             status="BLOCKED"
           />
           <FlowCard
-            icon={<HardDrive size={14} className="text-zinc-800" />}
+            icon={<HardDrive size={14} className="text-[#121212]" />}
             title="Subprocesses"
             status="BLOCKED"
           />
           <FlowCard
-            icon={<Globe size={14} className="text-zinc-800" />}
+            icon={<Globe size={14} className="text-[#121212]" />}
             title="DNS Tunneling"
             status="BLOCKED"
           />
           <FlowCard
-            icon={<Activity size={14} className="text-zinc-800" />}
+            icon={<Activity size={14} className="text-[#121212]" />}
             title="Entropy Detection"
             status="BLOCKED"
             className="col-span-2 md:col-span-1"
@@ -202,8 +202,8 @@ export default function TerminalFlow() {
           left: 50%;
           width: 20px;
           height: 20px;
-          border-radius: 50%;
-          background: rgba(244, 63, 94, 0.1);
+          border-radius: 0px;
+          background: rgba(208, 32, 32, 0.1);
           animation: radarPulse 2s infinite ease-out;
           pointer-events: none;
         }
@@ -222,23 +222,23 @@ interface FlowCardProps {
 function FlowCard({ icon, title, status, className = "" }: FlowCardProps) {
   return (
     <div
-      className={`relative flex flex-col items-center bg-white border border-zinc-200 rounded-xl p-4 shadow-sm hover:border-zinc-300 transition-all duration-300 group ${className}`}
+      className={`relative flex flex-col items-center bg-white border-2 border-[#121212] rounded-none p-4 shadow-[3px_3px_0px_#121212] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_#121212] transition-all duration-300 group ${className}`}
     >
       {/* Top red dot blocking the connector line with ripple animation */}
-      <div className="absolute -top-[9px] left-1/2 -translate-x-1/2 w-4.5 h-4.5 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center shadow-sm z-10 text-rose-500">
+      <div className="absolute -top-[9px] left-1/2 -translate-x-1/2 w-4.5 h-4.5 bg-[#D02020] border-2 border-[#121212] flex items-center justify-center shadow-sm z-10 text-white">
         <div className="collision-ripple" />
         <X size={8} className="stroke-[3.5] relative z-10" />
       </div>
 
-      <div className="p-2 bg-zinc-50 rounded-lg mb-2 text-zinc-800 transition-transform duration-300 group-hover:scale-105">
+      <div className="p-2 bg-zinc-50 border border-zinc-200 rounded-none mb-2 text-[#121212] transition-transform duration-300 group-hover:scale-105">
         {icon}
       </div>
 
-      <span className="text-[10px] font-extrabold text-zinc-800 text-center mb-2 leading-tight tracking-wide">
+      <span className="text-[10px] font-black uppercase tracking-wider text-[#121212] text-center mb-2 leading-tight">
         {title}
       </span>
 
-      <span className="px-2 py-0.5 rounded-full text-[8px] font-black tracking-wider bg-rose-50 text-rose-600 border border-rose-100">
+      <span className="px-2 py-0.5 rounded-none text-[8px] font-black tracking-widest uppercase bg-[#D02020] text-white border border-[#121212]">
         {status}
       </span>
     </div>

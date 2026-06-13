@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #09090b;
+  --background: #F0F0F0;
+  --foreground: #121212;
+  --primary-red: #D02020;
+  --primary-blue: #1040C0;
+  --primary-yellow: #F0C020;
+  --border-color: #121212;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -10,8 +14,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
 html {
@@ -27,90 +31,114 @@ body {
   overflow-x: hidden;
 }
 
-/* Light Mode Webkit Scrollbar */
+/* Stark Bauhaus Webkit Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #f4f4f5;
+  background: #E0E0E0;
+  border-left: 3px solid #121212;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 4px;
+  background: #121212;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1aa;
+  background: #D02020;
 }
 
-/* Premium Light-Mode Grid Background */
+/* Bauhaus Grid Background (Stark geometric rules) */
 .grid-bg {
-  background-size: 40px 40px;
+  background-size: 60px 60px;
   background-image: 
-    linear-gradient(to right, rgba(9, 9, 11, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(9, 9, 11, 0.03) 1px, transparent 1px);
-  mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, #000 70%, transparent 100%);
+    linear-gradient(to right, rgba(18, 18, 18, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(18, 18, 18, 0.05) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 80%, transparent 100%);
 }
 
 .grid-bg-full {
-  background-size: 40px 40px;
+  background-size: 60px 60px;
   background-image: 
-    linear-gradient(to right, rgba(9, 9, 11, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(9, 9, 11, 0.02) 1px, transparent 1px);
-  mask-image: radial-gradient(circle 800px at center, #000 30%, transparent 100%);
+    linear-gradient(to right, rgba(18, 18, 18, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(18, 18, 18, 0.03) 1px, transparent 1px);
+  mask-image: radial-gradient(circle 900px at center, #000 40%, transparent 100%);
 }
 
-/* Scroll-linked Glow Wave */
+/* Scroll-linked Glow Wave - Bauhaus Style (Stark flat line) */
 .glow-wave {
   position: absolute;
   top: 0;
   left: 0;
-  width: 3px;
+  width: 4px;
   height: 0%;
-  background: linear-gradient(180deg, #4f46e5 0%, #a855f7 100%);
-  border-radius: 9999px;
-  box-shadow: 0 0 15px rgba(79, 70, 229, 0.4);
+  background: #D02020;
+  border-right: 2px solid #121212;
   z-index: 10;
   transform-origin: top;
 }
 
-/* Bento Card Style - Light Theme */
+/* Bauhaus Bento Card Style (Square edges, thick borders, flat hard shadows) */
 .bento-card {
   position: relative;
   background: #ffffff;
-  border: 1px solid rgba(9, 9, 11, 0.06);
-  border-radius: 20px;
-  padding: 28px;
+  border: 3px solid #121212;
+  border-radius: 0px; /* Zero rounded corners for Bauhaus geometric purity */
+  padding: 32px;
   overflow: hidden;
-  transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+  box-shadow: 4px 4px 0px #121212;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .bento-card:hover {
-  border-color: rgba(99, 102, 241, 0.2);
-  box-shadow: 0 12px 30px -10px rgba(9, 9, 11, 0.06), 0 0 40px -10px rgba(99, 102, 241, 0.04);
+  transform: translate(-3px, -3px);
+  box-shadow: 7px 7px 0px #121212;
 }
 
 .bento-card.active-glow {
-  border-color: rgba(99, 102, 241, 0.4);
-  box-shadow: 0 12px 30px -10px rgba(99, 102, 241, 0.08), 0 0 40px -10px rgba(99, 102, 241, 0.06);
+  transform: translate(-4px, -4px);
+  box-shadow: 8px 8px 0px #D02020;
+  border-color: #121212;
 }
 
-/* Spotlights */
-.glow-spotlight {
-  position: absolute;
-  width: 300px;
-  height: 300px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%);
-  pointer-events: none;
-  mix-blend-mode: multiply;
+/* Flat Hard Shadows for UI Elements */
+.flat-shadow {
+  box-shadow: 4px 4px 0px #121212;
 }
 
-.glow-spotlight-emerald {
-  position: absolute;
-  width: 250px;
-  height: 250px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.06) 0%, transparent 70%);
-  pointer-events: none;
+.flat-shadow-lg {
+  box-shadow: 6px 6px 0px #121212;
 }
+
+.flat-shadow-red {
+  box-shadow: 4px 4px 0px #D02020;
+}
+
+.flat-shadow-blue {
+  box-shadow: 4px 4px 0px #1040C0;
+}
+
+.flat-shadow-yellow {
+  box-shadow: 4px 4px 0px #F0C020;
+}
+
+/* Animations */
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }

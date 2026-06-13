@@ -21,32 +21,30 @@ export default function Comparison() {
   ];
 
   return (
-    <div className="w-full bg-white border border-zinc-200/80 rounded-2xl p-6 md:p-8 shadow-sm relative overflow-hidden">
-      {/* Decorative background gradient */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/20 rounded-full blur-2xl pointer-events-none" />
+    <div className="w-full bg-white border-3 border-[#121212] rounded-none p-6 md:p-8 shadow-[4px_4px_0px_#121212] relative overflow-hidden">
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 relative">
-        {/* VS Divider for desktop */}
-        <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-zinc-50 border border-zinc-200 items-center justify-center text-[10px] font-extrabold text-zinc-400 select-none z-10 shadow-sm">
+        {/* VS Divider for desktop (Stark square) */}
+        <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 bg-[#F0C020] border-3 border-[#121212] items-center justify-center text-[10px] font-black text-[#121212] select-none z-10 shadow-[2px_2px_0px_#121212]">
           VS
         </div>
 
         {/* Static Analysis Column */}
         <div className="space-y-6">
           <div className="space-y-1">
-            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+            <h4 className="inline-block px-3 py-1.5 bg-[#D02020] text-white border-2 border-[#121212] text-xs font-black uppercase tracking-widest">
               Static Analysis (SAST)
             </h4>
-            <div className="h-0.5 w-12 bg-rose-500/50" />
+            <div className="h-1 bg-[#121212] w-12 mt-1.5" />
           </div>
 
           <ul className="space-y-4">
             {sastFeatures.map((feat, idx) => (
-              <li key={idx} className="flex items-center gap-3 text-zinc-650">
-                <div className="w-5 h-5 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0">
-                  <X size={11} className="stroke-[3]" />
+              <li key={idx} className="flex items-center gap-3 text-[#121212]">
+                <div className="w-6 h-6 bg-white border-2 border-[#121212] flex items-center justify-center text-rose-600 shrink-0">
+                  <X size={12} className="stroke-[3.5]" />
                 </div>
-                <span className="text-xs font-bold text-zinc-600">{feat.text}</span>
+                <span className="text-xs font-black uppercase tracking-wider">{feat.text}</span>
               </li>
             ))}
           </ul>
@@ -54,27 +52,27 @@ export default function Comparison() {
 
         {/* Divider for mobile */}
         <div className="flex lg:hidden items-center justify-center gap-4 py-2">
-          <div className="h-px bg-zinc-200 flex-1" />
-          <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-2">VS</span>
-          <div className="h-px bg-zinc-200 flex-1" />
+          <div className="h-1 bg-[#121212] flex-1" />
+          <span className="text-[10px] font-black text-[#121212] uppercase tracking-widest px-2">VS</span>
+          <div className="h-1 bg-[#121212] flex-1" />
         </div>
 
         {/* envtrap Column */}
         <div className="space-y-6">
           <div className="space-y-1">
-            <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-widest">
+            <h4 className="inline-block px-3 py-1.5 bg-[#1040C0] text-white border-2 border-[#121212] text-xs font-black uppercase tracking-widest">
               envtrap Runtime Shield
             </h4>
-            <div className="h-0.5 w-12 bg-indigo-500" />
+            <div className="h-1 bg-[#121212] w-12 mt-1.5" />
           </div>
 
           <ul className="space-y-4">
             {envtrapFeatures.map((feat, idx) => (
-              <li key={idx} className="flex items-center gap-3 text-zinc-950">
-                <div className="w-5 h-5 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 shadow-sm">
-                  <Check size={11} className="stroke-[3]" />
+              <li key={idx} className="flex items-center gap-3 text-[#121212]">
+                <div className="w-6 h-6 bg-[#F0C020] border-2 border-[#121212] flex items-center justify-center text-[#121212] shrink-0 shadow-[1px_1px_0px_#121212]">
+                  <Check size={12} className="stroke-[3.5]" />
                 </div>
-                <span className="text-xs font-extrabold text-zinc-800">{feat.text}</span>
+                <span className="text-xs font-black uppercase tracking-wider">{feat.text}</span>
               </li>
             ))}
           </ul>
