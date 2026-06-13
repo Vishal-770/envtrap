@@ -74,71 +74,56 @@ console.log('Request failed:', { headers, body });
 
 ---
 
-## 3. Subprocesses
+## 3. Subprocesses (`child_process`)
 
-**Why it's a risk**: `child_process.exec` can spawn `curl`, `wget`, or `bash` with environment variables that carry secrets — completely bypassing Node.js-level HTTPS monitoring.
+**Why it's a risk**: Spawning child processes (like calling shell utilities or native scripts) passing environment variables that carry active secrets is a major exfiltration risk. A malicious npm script can spawn `curl` or `wget` passing the full environment block.
 
 **What envtrap does**:
-- Patches `exec`, `execSync`, `spawn`, `spawnSync`, `fork`
-- Validates the command against an **subprocess allow-list**
-- Blocks unauthorized commands before any OS-level fork
-
-**Default blocked commands**: `curl`, `wget`, `nc`, `ncat`, `python`, `ruby`, `perl`, `bash -c`, `sh -c` (when used for network access)
+- Hooks `exec`, `execSync`, `spawn`, `spawnSync`, `fork`, `execFile`, and `execFileSync`.
+- Inspects the environment object (`options.env`) being sent to the subprocess.
+- Blocks execution or throws an error in `"block"` mode if active secrets are being inherited.
 
 **Configuration**:
 ```json
 {
   "channels": {
-    "subprocess": {
-      "mode": "block",
-      "allowList": ["git", "node", "pnpm", "npm"]
-    }
+    "child_process": "block"
   }
 }
 ```
 
 ---
 
-## 4. DNS Tunneling
+## 4. DNS Tunneling (`dns`)
 
-**Why it's a risk**: DNS queries bypass most HTTP-level firewalls. Attackers encode data in subdomain labels (e.g., `c3RyaXBlX3NlY3JldA==.attacker.com`) to exfiltrate data without making a single HTTP connection.
+**Why it's a risk**: DNS queries bypass most HTTP firewalls. Malicious packages can encode secrets inside subdomain queries (e.g., `c3RyaXBlX3NlY3JldA==.attacker.com`) to leak them via local DNS resolvers.
 
 **What envtrap does**:
-- Intercepts all `dns.resolve` calls and raw UDP DNS packets
-- Checks subdomain labels for base64, hex, and high-entropy patterns
-- Detects abnormally long subdomains (indicator of encoded data)
-- Blocks queries that match exfiltration signatures
+- Intercepts all name resolution calls in `node:dns`.
+- Blocks resolutions containing active secrets.
+- Scans labels (segments) of the requested hostname using Shannon entropy to identify high-entropy strings (e.g. base64-encoded strings).
 
-**Detection heuristics**:
-
-| Signal | Threshold |
-|---|---|
-| Subdomain label length | > 40 characters |
-| Label entropy | > 4.5 bits/char |
-| Base64 pattern in label | Always flagged |
-| Number of labels | > 6 |
+**Heuristics**:
+* Any domain query matching an active secret is blocked or logged.
+* Any subdomain label with a length >= configured min length (default: `12`) and entropy >= configured threshold (default: `3.5`) triggers a DNS exfiltration warning.
 
 ---
 
 ## 5. Entropy Detection
 
-**Why it's a risk**: Custom credentials, encryption keys, and randomly generated tokens don't match known regex patterns but are still sensitive.
+**Why it's a risk**: Custom credentials, tokens, or encryption keys that are randomly generated might not match built-in regex patterns, but still need protection from exfiltration.
 
 **What envtrap does**:
-- Applies Shannon entropy scoring to all intercepted strings
-- Flags strings above the configured threshold (default: 5.0)
-- Works across all channels (HTTPS body, stdout, DNS, subprocess args)
-
-See the [Secret Detection](/how-it-works/secret-detection) page for full details on the entropy algorithm and configuration.
+- Screens your `process.env` and `.env` files on startup for any values passing the entropy/length gates.
+- Adds qualifying high-entropy strings to the active secret pool, protecting them across all active channels.
 
 ---
 
 ## Attack Surface Matrix
 
-| Attack Surface | Pattern Match | Entropy Scan | Domain Allow-list | Subprocess Allow-list |
-|---|---|---|---|---|
-| HTTPS body | ✅ | ✅ | ✅ | — |
-| HTTPS headers | ✅ | ✅ | ✅ | — |
-| stdout / stderr | ✅ | ✅ | — | — |
-| Subprocess args | ✅ | ✅ | — | ✅ |
-| DNS queries | ✅ | ✅ | — | — |
+| Attack Surface | Mode Option | Domain Exclusions | Path Exclusions |
+|---|---|---|---|
+| HTTPS / HTTP | `network` | ✅ | — |
+| stdout / stderr | `stdout` / `stderr` | — | ✅ |
+| Subprocess environment | `child_process` | — | ✅ |
+| DNS queries | `dns` | — | ✅ |

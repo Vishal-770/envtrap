@@ -5,92 +5,103 @@ description: "How envtrap hooks into the Node.js runtime to intercept all outbou
 
 ## Overview
 
-envtrap uses **Node.js module patching** and **LD_PRELOAD-style hooks** to intercept traffic at the lowest possible level inside the runtime — before any userland code can redirect, encrypt, or obfuscate it.
+envtrap runs your application inside a monitored child process context. It uses a combination of **local proxy routing**, **CommonJS monkey-patching**, and **ESM customization hooks** to intercept outbound leaks before they leave your process boundaries.
 
 This approach is fundamentally different from static analysis:
 
 | Approach | When | What It Sees |
 |---|---|---|
 | SAST | Build time | Source code patterns |
-| envtrap | **Runtime** | **Actual data, actual destinations** |
+| envtrap | **Runtime** | **Actual data in flight, actual destinations** |
 
-## How Module Patching Works
+---
 
-When you run `envtrap run node app.js`, envtrap:
+## How Interception Works
 
-1. **Spawns the Node.js process** with a custom `--require` preload script
-2. **Patches core modules** (`http`, `https`, `child_process`, `dns`, `process`) before any userland code runs
-3. Wraps every sensitive API with an interceptor that inspects, scans, and either passes or blocks the call
+When you run `envtrap run node app.js`, envtrap orchestrates the security boundaries through the following steps:
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Node.js Process (wrapped by envtrap)           │
-│                                                 │
-│  ┌──────────────┐    ┌───────────────────────┐  │
-│  │  Your App    │───▶│  Patched core modules │  │
-│  │  + npm deps  │    │  (https, dns, spawn)  │  │
-│  └──────────────┘    └───────────┬───────────┘  │
-│                                  │              │
-│                        ┌─────────▼──────────┐   │
-│                        │  envtrap Engine    │   │
-│                        │  • Pattern match   │   │
-│                        │  • Entropy scan    │   │
-│                        │  • Policy check    │   │
-│                        └─────────┬──────────┘   │
-│                                  │              │
-│                      Block ◀─────┴─────▶ Pass   │
-└─────────────────────────────────────────────────┘
+                  ┌──────────────────────────────────────────┐
+                  │          envtrap CLI (Spawner)           │
+                  └────────────────────┬─────────────────────┘
+                                       │
+                Spawns with proxy env variables + import hooks
+                                       │
+                                       ▼
+    ┌──────────────────────────────────────────────────────────────────────┐
+    │ Node.js Application Process (Child)                                  │
+    │                                                                      │
+    │  ┌────────────────────┐          ┌────────────────────────────────┐  │
+    │  │ Application Code   │─────────▶│ Patched Core Modules           │  │
+    │  │ & npm Dependencies │          │ (dns, child_process)           │  │
+    │  └────────────────────┘          └───────────────┬────────────────┘  │
+    │                                                  │                   │
+    │                                                  ▼                   │
+    │  ┌────────────────────┐          ┌────────────────────────────────┐  │
+    │  │ Streams & Outputs  │          │ Local MITM Proxy (127.0.0.1)   │  │
+    │  │ (stdout / stderr)  │          │ (Decrypts TLS Outbound HTTPS)  │  │
+    │  └─────────┬──────────┘          └───────────────┬────────────────┘  │
+    │            │                                     │                   │
+    └────────────┼─────────────────────────────────────┼───────────────────┘
+                 │ Pipes                               │ Requests
+                 ▼                                     ▼
+      ┌──────────────────────────────────────────────────────────────────┐
+      │                      envtrap Scanner Engine                      │
+      │   • Entropy Screening   • Pattern Checks   • Path Exclusions     │
+      └──────────────────────────────────────────────────────────────────┘
 ```
 
-## Patched APIs
+### 1. HTTP/HTTPS Decryption (MITM Proxy)
+On startup, envtrap spawns an in-memory HTTP/HTTPS proxy server on `127.0.0.1` and points standard proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy`, `https_proxy`) to it. It also automatically sets `NODE_EXTRA_CA_CERTS` to point to our generated Root CA certificate.
+All outbound network calls are routed through this proxy, decrypted, scanned for matching secrets, and either blocked (returning a `403` or `502` response) or forwarded to the upstream server.
 
-### `https` / `http`
+### 2. CommonJS Monkey-patching
+For applications or dependencies using CommonJS (`require()`), envtrap overrides `Module.prototype.require` inside the preload context.
+When code loads `child_process` (or `node:child_process`) or `dns` (or `node:dns`), envtrap returns wrapped versions of these modules to intercept calls.
 
-envtrap wraps `https.request` and `http.request`. For every outbound request:
+### 3. ESM Loader Customization Hooks
+For modern ESM applications (`import`), envtrap registers Customization Hooks (`--import`) using Node's customization registry to hook module resolutions. It intercepts and redirects requests for `child_process` and `dns` to secure virtual module wrappers.
 
-- The **URL** is checked against an allow-list of approved domains
-- The **request body** is scanned for known secret patterns
-- The **headers** are inspected for Authorization tokens
-- If a match is found → request is terminated and the caller receives an error
+---
 
-### `child_process`
+## Interception Channels
 
-`exec`, `execSync`, `spawn`, `spawnSync`, `fork` are all patched:
+### Outbound Network (`network`)
+* Decrypts HTTP/HTTPS requests in real-time.
+* Scans headers, path URLs, and bodies for matches of active secrets.
+* If a secret is matched and the mode is `"block"`, the request connection is terminated immediately.
 
-- The **command string** is checked against an allow-list
-- Unauthorized shell commands are blocked before the OS fork happens
-- This prevents `curl`, `wget`, or `nc` from being called by dependency code
+### Subprocesses (`child_process`)
+* Intercepts `exec`, `execSync`, `spawn`, `spawnSync`, `fork`, `execFile`, and `execFileSync`.
+* Scans the environment variables (`options.env`) being passed to the child process.
+* If active secrets are inherited by the child environment, envtrap blocks execution or throws a synchronous error in `"block"` mode.
 
-### `dns`
+### Name Resolution (`dns`)
+* Hooks `lookup`, `resolve`, and all other host query promise endpoints.
+* Scans target hostnames for active secrets.
+* Scans subdomains using Shannon entropy to warn on possible DNS tunneling exfiltrations.
 
-`dns.resolve`, `dns.lookup`, and the underlying UDP socket are intercepted:
+### Standard Outputs (`stdout` / `stderr`)
+* Intercepts writes to standard output and error streams.
+* Output containing active secrets is redacted to `[REDACTED: SHA256:<hash>]`.
+* In `"block"` mode, detecting a leak terminates the process via `SIGTERM` immediately.
 
-- Queries with **high-entropy subdomains** are flagged as potential tunneling
-- Known data-exfiltration patterns (base64, hex in subdomain labels) are detected
+---
 
-### `process.stdout` / `process.stderr`
+## Preload Script Setup
 
-Write calls to stdout and stderr are intercepted:
-
-- Output is scanned for secret patterns before being written to the terminal
-- Matched secrets are **redacted** (replaced with `[REDACTED:ENVTRAP]`)
-- A fingerprint is logged for auditing
-
-## Preload Script
-
-The interception is injected via Node.js's `--require` flag:
+The hooks are automatically configured by envtrap spawner via:
 
 ```bash
-node --require /path/to/envtrap/preload.js your-app.js
+NODE_OPTIONS="--import /path/to/envtrap/dist/hooks.mjs"
 ```
 
-The preload script runs **synchronously before any module is loaded**, giving envtrap first access to patch all core APIs.
+The hooks run **synchronously before any user code is executed**, guaranteeing that all core modules are safely wrapped before dependencies load.
 
-## Performance Impact
+---
 
-envtrap's interceptors are designed to be minimal overhead:
+## Path Exclusions Handling
 
-- Pattern matching uses **precompiled RegEx** (compiled once at startup)
-- Entropy scoring uses an O(n) single-pass Shannon entropy algorithm
-- The hot path (passing traffic) adds **< 0.5ms** per intercepted call
-- Failed matches (blocks) are the only expensive path, and those are rare by design
+If an operation originates from a path specified in `exclusions.paths` (checked using stack tracing):
+* **Subprocess & DNS**: Suppresses detections/warnings.
+* **Streams (stdout/stderr)**: Pre-redacts any output to `[REDACTED: PATH_EXCLUDED]` inside the hook before it is written to the pipe, preventing the outer spawner from raising alarms.

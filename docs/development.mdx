@@ -6,13 +6,13 @@ description: "Set up the envtrap development environment and contribute to the p
 ## Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/envtrap.git
+git clone https://github.com/Vishal-770/envtrap.git
 cd envtrap
 ```
 
 ## Install Dependencies
 
-envtrap uses **pnpm** as its package manager:
+envtrap uses **pnpm** workspace features:
 
 ```bash
 pnpm install
@@ -20,32 +20,50 @@ pnpm install
 
 ## Project Structure
 
-```
+The project is structured as a pnpm monorepo:
+
+```text
 envtrap/
-├── cli/              # CLI entrypoint and argument parsing
-├── interceptors/     # Runtime interceptors (https, dns, subprocess, etc.)
-├── scanner/          # Secret pattern matching & entropy analysis
-├── policy/           # Policy engine (block vs. warn logic)
-├── landing-page/     # Next.js marketing site
+├── package/          # Core envtrap security agent npm package
+│   ├── src/          # TypeScript source code
+│   │   ├── index.ts      # Spawner, CLI orchestrator, spawner process logic
+│   │   ├── hooks.mjs     # ESM customization hooks & CommonJS require() overrides
+│   │   ├── config.ts     # envtrap.json schema parser & validator
+│   │   ├── ca.ts         # In-memory X.509 Certificate Authority
+│   │   ├── proxy.ts      # MITM TLS HTTP/HTTPS proxy server
+│   │   ├── scanner.ts    # Stateful scanning engine and TTL dedup cache
+│   │   ├── fingerprint.ts# Shannon entropy & token matchers (looksLikeSecret)
+│   │   └── reporter.ts   # Output logger, redact printer, JSONL log writer
+│   └── dist/         # Compiled JS and copied ESM hooks
+├── test-server/      # Integration test suite (Express web app + mock TLS server)
+│   └── test/
+│       └── integration.test.js # Comprehensive test runner
+├── landing-page/     # Next.js product landing page
 └── docs/             # Mintlify documentation (you are here)
+```
+
+## Building
+
+To compile the TypeScript package source and copy raw ESM customization hooks to `dist`:
+
+```bash
+cd package
+pnpm run build
 ```
 
 ## Running Tests
 
+Integration tests verify interceptors under real process spawns, CommonJS imports, ESM loader injections, and network MITM proxied connections.
+
+First, ensure the package is built, then run tests in the `test-server` folder:
+
 ```bash
+# Build the agent package
+cd package && pnpm run build
+
+# Run the integration test suite
+cd ../test-server
 pnpm test
-```
-
-Tests cover:
-- Pattern matching for known secret formats (Stripe, AWS, GCP, GitHub, etc.)
-- Entropy scoring thresholds
-- Channel interception correctness
-- Policy enforcement (block vs. warn)
-
-## Building
-
-```bash
-pnpm build
 ```
 
 ## Running the Landing Page Locally
@@ -74,30 +92,18 @@ mintlify dev
 
 The docs will be available at `http://localhost:3000`.
 
-## Adding a New Interceptor
+## Architecture Overview
 
-1. Create a file in `interceptors/` (e.g., `interceptors/grpc.ts`)
-2. Implement the `Interceptor` interface:
-
-```typescript
-export interface Interceptor {
-  name: string;
-  attach(pid: number, policy: Policy): void;
-  detach(): void;
-}
-```
-
-3. Register it in `interceptors/index.ts`
-4. Add corresponding configuration support in `configuration/channels`
+If you want to contribute to the code:
+1. **CLI Commands and Spawner**: Handle flags and set up proxy/hooks environments in `package/src/index.ts`.
+2. **ESM loader/CJS patches**: Any changes to intercepted hooks for `node:dns` or `node:child_process` go in `package/src/hooks.mjs`.
+3. **MITM HTTPS Decryption**: The proxy handling and response blocking go in `package/src/proxy.ts`.
+4. **Secret Scanning**: The candidate filter and entropy logic go in `package/src/fingerprint.ts`.
 
 ## Submitting a PR
 
 1. Fork the repository
 2. Create a branch: `git checkout -b feat/my-feature`
-3. Make your changes and add tests
-4. Run `pnpm test` and `pnpm lint`
+3. Make your changes and add tests in `test-server/test/integration.test.js`
+4. Verify tests pass with `pnpm test`
 5. Submit a pull request with a clear description
-
-<Note>
-  Please include a test case that demonstrates the interceptor correctly blocks a known exfiltration vector.
-</Note>
