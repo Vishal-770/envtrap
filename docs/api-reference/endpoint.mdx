@@ -1,0 +1,30 @@
+---
+title: "CLI Reference"
+description: "Reference guide for envtrap command parameters and options"
+---
+
+The envtrap CLI provides commands to wrap application processes and inspect potential leak avenues.
+
+## `envtrap run`
+
+Wraps a child process execution under envtrap's runtime scanning layer.
+
+```bash
+envtrap run [options] -- <command>
+```
+
+### Option Flags
+
+| Option | Type | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `--verbose` | `boolean` | Enable verbose logger output | `false` |
+| `--config` | `string` | Specify path to configuration schema | `envtrap.json` |
+| `--warn-only` | `boolean` | Trigger console alerts instead of terminating leaks | `false` |
+
+### Example Execution
+
+Run a local server with custom warning rules:
+
+```bash
+envtrap run --config=./security/custom.json --warn-only -- npm start
+```

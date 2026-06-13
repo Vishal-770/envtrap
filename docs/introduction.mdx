@@ -1,0 +1,27 @@
+---
+title: Introduction
+description: "Welcome to the envtrap documentation"
+---
+
+envtrap is a zero-configuration runtime security agent that intercepts, blocks, and flags the accidental exfiltration of secrets across stdout/stderr, network traffic, subprocesses, DNS, and entropy patterns in Node.js applications.
+
+## Key Features
+
+- **Zero Configuration**: Works out of the box. No setup. No source code edits.
+- **In-Memory CA Protection**: No private keys are written to disk. Always secure.
+- **Real-Time Interception**: Hooks into the runtime directly, blocking threats before data hits the socket layer.
+- **AI-Safe by Design**: Logs non-reversible hashes instead of raw secrets, securing outputs for Claude Code, Copilot, and LLM histories.
+- **100% Local Execution**: Runs entirely inside your local process space. Zero external telemetry.
+
+## Get Started
+
+Follow the Quickstart guide to get envtrap installed and guarding your applications in under two minutes.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart Guide" icon="bolt" href="/quickstart">
+    Install envtrap and run your Node.js application under real-time protection.
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/api-reference/endpoint">
+    Explore all CLI command arguments and process configuration options.
+  </Card>
+</CardGroup>

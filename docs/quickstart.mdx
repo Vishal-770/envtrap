@@ -1,0 +1,34 @@
+---
+title: "Quickstart"
+description: "Start protecting your secrets in under 2 minutes"
+---
+
+## 1. Installation
+
+Install envtrap globally using your preferred package manager to make the CLI available across your system:
+
+```bash
+npm install -g envtrap
+```
+
+Or add it locally to your Node.js project directory:
+
+```bash
+npm install --save-dev envtrap
+```
+
+## 2. Protect Your Process
+
+To run your application under envtrap's runtime protection, simply prepend the startup command with `envtrap run`:
+
+```bash
+envtrap run node app.js
+```
+
+### What happens under the hood?
+
+envtrap wraps your Node.js application process and registers runtime interceptor hooks before your custom modules load. If a dependency or block of code attempts to exfiltrate secret patterns:
+
+1. **The exfiltration path is blocked**: envtrap terminates the HTTP request, stdout write, or DNS query immediately.
+2. **Safety hashes are calculated**: A cryptographic, non-reversible SHA256 signature is logged.
+3. **Structured report written**: A machine-readable JSON log is outputted details channel, context, and timestamp information.

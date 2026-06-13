@@ -1,0 +1,45 @@
+---
+title: "Development Guide"
+description: "How to configure envtrap rules and simulate leaks locally"
+---
+
+While envtrap requires zero configuration, you can customize interceptor channels, exclusions, and rules using an optional `envtrap.json` configuration file at the root of your repository.
+
+## Custom Configuration
+
+Create an `envtrap.json` file in your project:
+
+```json
+{
+  "excludePaths": [
+    "**/node_modules/**",
+    "**/tests/**"
+  ],
+  "channels": {
+    "stdout": "block",
+    "https": "block",
+    "dns": "warn",
+    "subprocess": "block"
+  }
+}
+```
+
+## Testing Your Setup
+
+You can test that envtrap is running and blocking exfiltrations by simulating a console log leak:
+
+```javascript
+// test-leak.js
+console.log("Mock Stripe Secret: sk_live_51NzabcXYZ999");
+```
+
+Execute this script under envtrap protection:
+
+```bash
+envtrap run node test-leak.js
+```
+
+You will see the terminal output intercepted, displaying:
+```text
+[envtrap] BLOCKED: stdout write intercepted. Secret pattern match detected.
+```
