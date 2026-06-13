@@ -3,38 +3,38 @@ import { Check, X } from "lucide-react";
 
 export default function Comparison() {
   const sastFeatures = [
-    { text: "Scans code", active: false },
-    { text: "Finds patterns", active: false },
-    { text: "Cannot see runtime values", active: false },
-    { text: "Misses generated secrets", active: false },
-    { text: "Cannot stop exfiltration", active: false },
-    { text: "Needs source access", active: false },
+    { text: "Scans code statically", active: false },
+    { text: "Finds static patterns only", active: false },
+    { text: "Cannot see live runtime values", active: false },
+    { text: "Misses dynamically generated secrets", active: false },
+    { text: "Cannot prevent or block exfiltration", active: false },
+    { text: "Requires repository access", active: false },
   ];
 
   const envtrapFeatures = [
-    { text: "Runtime visibility", active: true },
-    { text: "Intercepts live traffic", active: true },
-    { text: "Detects generated secrets", active: true },
-    { text: "Blocks exfiltration", active: true },
-    { text: "Works without source access", active: true },
-    { text: "Zero configuration", active: true },
+    { text: "Full runtime execution visibility", active: true },
+    { text: "Intercepts live network/DNS/stdout traffic", active: true },
+    { text: "Detects dynamically generated secrets", active: true },
+    { text: "Blocks exfiltration at execution time", active: true },
+    { text: "Works zero-config without source access", active: true },
+    { text: "Zero environment/telemetry leakage", active: true },
   ];
 
   return (
-    <div className="w-full bg-white dark:bg-zinc-950 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 md:p-8 shadow-sm relative overflow-hidden">
-      {/* Decorative subtle gradient background */}
+    <div className="w-full bg-zinc-955 bg-zinc-950/40 border border-zinc-900 rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden backdrop-blur-md">
+      {/* Decorative background gradient */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 relative">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 relative">
         {/* VS Divider for desktop */}
-        <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 items-center justify-center text-xs font-bold text-slate-500 select-none z-10">
+        <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 items-center justify-center text-[10px] font-extrabold text-zinc-400 select-none z-10 shadow-lg">
           VS
         </div>
 
         {/* Static Analysis Column */}
         <div className="space-y-6">
           <div className="space-y-1">
-            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
+            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
               Static Analysis (SAST)
             </h4>
             <div className="h-0.5 w-12 bg-rose-500/50" />
@@ -42,39 +42,39 @@ export default function Comparison() {
 
           <ul className="space-y-4">
             {sastFeatures.map((feat, idx) => (
-              <li key={idx} className="flex items-center gap-3 text-slate-600 dark:text-slate-400">
-                <div className="w-5 h-5 rounded-full bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center text-rose-500 shrink-0">
-                  <X size={12} className="stroke-[3]" />
+              <li key={idx} className="flex items-center gap-3 text-zinc-400">
+                <div className="w-5 h-5 rounded-full bg-rose-950/30 border border-rose-900/20 flex items-center justify-center text-rose-400 shrink-0">
+                  <X size={11} className="stroke-[3]" />
                 </div>
-                <span className="text-sm font-medium">{feat.text}</span>
+                <span className="text-xs font-semibold">{feat.text}</span>
               </li>
             ))}
           </ul>
         </div>
 
         {/* Divider for mobile */}
-        <div className="flex md:hidden items-center justify-center gap-4 py-2">
-          <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">VS</span>
-          <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
+        <div className="flex lg:hidden items-center justify-center gap-4 py-2">
+          <div className="h-px bg-zinc-850 flex-1" />
+          <span className="text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest px-2">VS</span>
+          <div className="h-px bg-zinc-850 flex-1" />
         </div>
 
         {/* envtrap Column */}
         <div className="space-y-6">
           <div className="space-y-1">
-            <h4 className="text-sm font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-              envtrap
+            <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest">
+              envtrap Runtime Shield
             </h4>
             <div className="h-0.5 w-12 bg-indigo-500" />
           </div>
 
           <ul className="space-y-4">
             {envtrapFeatures.map((feat, idx) => (
-              <li key={idx} className="flex items-center gap-3 text-slate-800 dark:text-slate-200">
-                <div className="w-5 h-5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-500 shrink-0">
-                  <Check size={12} className="stroke-[3]" />
+              <li key={idx} className="flex items-center gap-3 text-zinc-150">
+                <div className="w-5 h-5 rounded-full bg-emerald-950/40 border border-emerald-900/20 flex items-center justify-center text-emerald-400 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.1)]">
+                  <Check size={11} className="stroke-[3]" />
                 </div>
-                <span className="text-sm font-semibold">{feat.text}</span>
+                <span className="text-xs font-bold text-zinc-200">{feat.text}</span>
               </li>
             ))}
           </ul>
