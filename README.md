@@ -13,34 +13,42 @@ A zero-configuration, air-gapped runtime secret leak detector and egress firewal
 
 This repository is structured as a monorepo containing the security agent CLI, documentation, the product landing page, and test suites:
 
-- **[`/package`](file:///home/vishal/Projects/envtrap/package)**: The core `envtrap` npm CLI tool and runtime hook agent.
-- **[`/landing-page`](file:///home/vishal/Projects/envtrap/landing-page)**: A premium Next.js 16 landing page with clean light-theme typography and interactive visuals.
-- **[`/docs`](file:///home/vishal/Projects/envtrap/docs)**: Mintlify-powered developer documentation files.
-- **[`/test-server`](file:///home/vishal/Projects/envtrap/test-server)**: A utility Node.js test server simulating exfiltration vectors to verify detection.
+### 📦 [`/package`](file:///home/vishal/Projects/envtrap/package) (Core Agent)
+The core `envtrap` npm package and CLI. It hooks Node.js runtime boundaries to intercept secret exfiltration.
+- **Interceptors:** Hooks native `net`, `tls`, `http`, `dns`, `child_process` modules and console streams.
+- **Features:** In-memory MITM TLS proxy, Shannon-entropy parsing, air-gapped mode, SHA-256 redaction logs, and local configuration.
+
+### 💻 [`/landing-page`](file:///home/vishal/Projects/envtrap/landing-page) (Marketing Website)
+A premium, highly interactive marketing website built to present `envtrap` with Vercel/Stripe-level aesthetics.
+- **Tech Stack:** Next.js 16 (React 19), Tailwind CSS, Lucide Icons, GSAP (animations), and Lenis (smooth scroll).
+- **Features:** Interactive pipeline flow visualizer, technical FAQ drawer, dark-to-light code terminals, responsive layout.
+
+### 📘 [`/docs`](file:///home/vishal/Projects/envtrap/docs) (Developer Guides)
+Mintlify-powered reference docs. Covers configuration, advanced exclusions, CLI reference guides, and security policies.
+
+### 🧪 [`/test-server`](file:///home/vishal/Projects/envtrap/test-server) (Leak Harness)
+An Express.js test app configured to simulate standard credential leaks so developers can verify `envtrap` in action.
+- **Endpoints:** `/leak-console` (stdout), `/leak-http` (network), `/leak-subprocess` (spawning scripts), `/leak-dns-esm` / `/leak-dns-cjs` (DNS queries).
 
 ---
 
 ## ⚡ Quick Start: Core Agent CLI
 
 ### 1. Installation
-
 Install globally using `npm`:
 ```bash
 npm install -g envtrap
 ```
-
 Or run without installing using `npx`:
 ```bash
 npx envtrap run node app.js
 ```
 
 ### 2. Basic Usage
-
-Prefix your Node.js application startup command with `envtrap run`:
+Prefix your startup command with `envtrap run`:
 ```bash
 envtrap run node app.js
 ```
-
 `envtrap` automatically scans for secrets loaded in `process.env` or from a `.env` file, monitoring 5 exfiltration channels:
 - **`stdout / stderr`**: Redacts secrets logged to process output streams.
 - **`network`**: Intercepts HTTPS/HTTP requests dynamically at the socket level.
@@ -52,30 +60,35 @@ envtrap run node app.js
 
 ## 💻 Quick Start: Landing Page
 
-The landing page is built with Next.js 16, Tailwind CSS, GSAP, and Lucide Icons.
-
-### 1. Install dependencies
-From the `/landing-page` directory:
-```bash
-pnpm install
-```
-
-### 2. Run local dev server
-```bash
-pnpm dev
-```
-
-### 3. Build production bundle
-```bash
-pnpm build
-```
+To run or build the landing page locally:
+1. Navigate to `/landing-page`.
+2. Install dependencies:
+   ```bash
+   pnpm install
+   ```
+3. Run local dev server:
+   ```bash
+   pnpm dev
+   ```
+4. Build production bundle:
+   ```bash
+   pnpm build
+   ```
 
 ---
 
-## 📘 Documentation
+## 🧪 Testing with the Test Server
 
-Our full developer reference guide, CLI arguments list, and custom exclusion instructions can be found at:
-👉 **[envtrap Mintlify Docs](https://envtrap.mintlify.app/introduction#the-solution)**
+The `/test-server` lets you safely test leaks in development:
+1. Navigate to `/test-server`.
+2. Launch the protected server on port `3001`:
+   ```bash
+   npm run secure
+   ```
+3. Visit the endpoints to test exfiltration intercepts:
+   - **`http://localhost:3001/leak-console`** (tests console redaction)
+   - **`http://localhost:3001/leak-http`** (tests network block)
+   - **`http://localhost:3001/leak-subprocess`** (tests child process block)
 
 ---
 
