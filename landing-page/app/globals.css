@@ -1,14 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #F0F0F0;
-  --foreground: #121212;
-  --primary-red: #D02020;
-  --primary-blue: #1040C0;
-  --primary-yellow: #F0C020;
-  --border-color: #121212;
+  --background: #ffffff;
+  --foreground: #09090b;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --border: rgba(9,9,11,0.1);
 }
 
 @theme inline {
@@ -19,126 +16,67 @@
 }
 
 html {
-  scroll-behavior: auto !important; /* Managed by Lenis */
-  background-color: var(--background);
-  color: var(--foreground);
+  scroll-behavior: smooth;
+  background-color: #ffffff;
+  color: #09090b;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: #ffffff;
+  color: #09090b;
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Stark Bauhaus Webkit Scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-}
-::-webkit-scrollbar-track {
-  background: #E0E0E0;
-  border-left: 3px solid #121212;
-}
-::-webkit-scrollbar-thumb {
-  background: #121212;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #D02020;
+h1, h2, h3, h4, h5, h6 {
+  text-wrap: balance;
 }
 
-/* Bauhaus Grid Background (Stark geometric rules) */
-.grid-bg {
-  background-size: 60px 60px;
-  background-image: 
-    linear-gradient(to right, rgba(18, 18, 18, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(18, 18, 18, 0.05) 1px, transparent 1px);
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 80%, transparent 100%);
+p {
+  text-wrap: pretty;
 }
 
-.grid-bg-full {
-  background-size: 60px 60px;
-  background-image: 
-    linear-gradient(to right, rgba(18, 18, 18, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(18, 18, 18, 0.03) 1px, transparent 1px);
-  mask-image: radial-gradient(circle 900px at center, #000 40%, transparent 100%);
+/* ── Scrollbar ─────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f4f4f5; }
+::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+
+/* ── Focus ─────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid #4f46e5 !important;
+  outline-offset: 2px;
 }
 
-/* Scroll-linked Glow Wave - Bauhaus Style (Stark flat line) */
-.glow-wave {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 0%;
-  background: #D02020;
-  border-right: 2px solid #121212;
-  z-index: 10;
-  transform-origin: top;
+/* ── Dot grid hero pattern ─────────────────── */
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(9,9,11,0.065) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
-/* Bauhaus Bento Card Style (Square edges, thick borders, flat hard shadows) */
-.bento-card {
-  position: relative;
-  background: #ffffff;
-  border: 3px solid #121212;
-  border-radius: 0px; /* Zero rounded corners for Bauhaus geometric purity */
-  padding: 32px;
-  overflow: hidden;
-  box-shadow: 4px 4px 0px #121212;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+/* ── Thin line grid ────────────────────────── */
+.line-grid {
+  background-size: 48px 48px;
+  background-image:
+    linear-gradient(to right, rgba(9,9,11,0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(9,9,11,0.04) 1px, transparent 1px);
 }
 
-.bento-card:hover {
-  transform: translate(-3px, -3px);
-  box-shadow: 7px 7px 0px #121212;
-}
+/* ── Code syntax colors ────────────────────── */
+.code-keyword  { color: #6366f1; }
+.code-string   { color: #16a34a; }
+.code-comment  { color: #94a3b8; }
+.code-dim      { color: #71717a; }
+.code-error    { color: #dc2626; }
+.code-success  { color: #059669; }
+.code-warn     { color: #d97706; }
 
-.bento-card.active-glow {
-  transform: translate(-4px, -4px);
-  box-shadow: 8px 8px 0px #D02020;
-  border-color: #121212;
-}
+/* ── Number utility ────────────────────────── */
+.tabular { font-variant-numeric: tabular-nums; }
 
-/* Flat Hard Shadows for UI Elements */
-.flat-shadow {
-  box-shadow: 4px 4px 0px #121212;
+/* ── Section divider ───────────────────────── */
+.section-divider {
+  border-top: 1px solid rgba(9,9,11,0.08);
 }
-
-.flat-shadow-lg {
-  box-shadow: 6px 6px 0px #121212;
-}
-
-.flat-shadow-red {
-  box-shadow: 4px 4px 0px #D02020;
-}
-
-.flat-shadow-blue {
-  box-shadow: 4px 4px 0px #1040C0;
-}
-
-.flat-shadow-yellow {
-  box-shadow: 4px 4px 0px #F0C020;
-}
-
-/* Animations */
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.animate-slide-up {
-  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  opacity: 0;
-}
-
-.delay-100 { animation-delay: 100ms; }
-.delay-200 { animation-delay: 200ms; }
-.delay-300 { animation-delay: 300ms; }
-.delay-400 { animation-delay: 400ms; }
-.delay-500 { animation-delay: 500ms; }

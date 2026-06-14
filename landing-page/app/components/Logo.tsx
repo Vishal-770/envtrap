@@ -23,7 +23,7 @@ export function LogoBrand({ className = "" }: { className?: string }) {
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
       <LogoIcon size={32} />
-      <span className="text-xl font-extrabold tracking-tight text-slate-900 font-sans">
+      <span className="text-lg font-mono font-bold tracking-tight text-white select-none">
         envtrap
       </span>
     </div>
