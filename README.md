@@ -79,8 +79,10 @@ Our full developer reference guide, CLI arguments list, and custom exclusion ins
 
 ---
 
-## 🔒 Security & License
+## 🔒 Security & Guidelines
 
 - **100% Local Execution**: No telemetry, no external API calls, and completely air-gapped compatible.
 - **AI-Safe Logs**: Secret values are hashed via SHA-256 for redaction, preventing credentials from appearing in log streams or AI assistants (e.g. Copilot, Claude Code).
-- **License**: MIT License.
+- **Security Policy**: For reporting vulnerabilities responsibly, please refer to our [Security Policy](./SECURITY.md).
+- **Contributing**: Check out our [Contributing Guidelines](./CONTRIBUTING.md) to learn how to run tests and make updates.
+- **License**: Released under the MIT License. See [LICENSE.md](./LICENSE.md) for details.
