@@ -1,6 +1,6 @@
 ---
 title: "Introduction"
-description: "envtrap — Runtime security for Node.js. Block secret exfiltration before it leaves your process."
+description: "envtrap v2.1 — Runtime security for Node.js. Block secret exfiltration before it leaves your process."
 ---
 
 <img
@@ -37,11 +37,12 @@ A single compromised package — even a deep transitive dependency — can silen
 
 envtrap solves this by wrapping your Node.js process with a **zero-instrumentation runtime guard** that:
 
-- 🔒 Intercepts HTTPS / HTTP outbound requests
-- 🔒 Monitors stdout / stderr for secret patterns
+- 🔒 Intercepts HTTPS / HTTP outbound requests via an in-memory MITM proxy
+- 🔒 Monitors stdout / stderr for secret patterns and redacts them
 - 🔒 Blocks unauthorized child processes and `execSync` calls
 - 🔒 Detects DNS tunneling exfiltration attempts
-- 🔒 Scans for high-entropy strings indicating credential leakage
+- 🔒 Synchronizes dynamically-rotated runtime secrets in real time
+- 🔒 Automatically bypasses local loopback traffic from the proxy
 
 ```bash
 # Before: vulnerable
@@ -57,22 +58,45 @@ That's it. No code changes. No SDK to install. No agent to manage.
 
 <CardGroup cols={2}>
   <Card title="Zero Instrumentation" icon="bolt">
-    Drop envtrap in front of any `node` command. No code changes required.
+    Drop envtrap in front of any `node` command. Works with Express, NestJS, Next.js, Fastify, and bare scripts.
   </Card>
   <Card title="HTTPS Interception" icon="shield">
-    Inspect outbound HTTPS bodies for secrets before they leave the process.
+    Native OpenSSL RSA — certificates generated in ~5ms. Loopback traffic bypassed automatically via `NO_PROXY`.
   </Card>
   <Card title="Entropy Detection" icon="chart-bar">
-    Shannon entropy analysis catches high-entropy credential strings.
+    Shannon entropy analysis catches high-entropy credential strings including dynamically-rotated secrets.
   </Card>
   <Card title="DNS Tunneling Guard" icon="network-wired">
-    Detect and block DNS-based exfiltration via encoded subdomains.
+    Detect and block DNS-based exfiltration via encoded subdomains, covering both callback and promise APIs.
   </Card>
-  <Card title="Subprocess Control" icon="terminal">
-    Allow-list child processes; block unauthorized shell commands.
+  <Card title="Real-Time Sync" icon="arrows-rotate">
+    `process.env` Proxy + `MessageChannel` broadcasts secret rotations to the ESM loader thread instantly.
   </Card>
   <Card title="Configurable Policy" icon="sliders">
-    Fine-tune blocking vs. warning per channel via `envtrap.json`.
+    Fine-tune `block` vs `warn` per channel via `envtrap.json`. Path exclusions and domain allowlists supported.
+  </Card>
+</CardGroup>
+
+## What's New in v2.1.0
+
+<CardGroup cols={2}>
+  <Card title="Native RSA Key Generation" icon="key">
+    TLS certificate synthesis reduced from ~200ms to ~5ms using Node's `crypto.generateKeyPairSync` (C++ OpenSSL).
+  </Card>
+  <Card title="O(n) Chunk Scanner" icon="gauge">
+    Eliminated O(n²) `Buffer.concat` in the MITM proxy — now uses a sliding-window overlap scanner.
+  </Card>
+  <Card title="Shell Injection Prevention" icon="terminal">
+    All system CA tooling migrated from `execSync` template strings to safe `execFileSync` argument arrays.
+  </Card>
+  <Card title="RFC 5280 Cert Serials" icon="certificate">
+    Certificate serial numbers now use `crypto.randomBytes(20)` — no more `Date.now()` collision risk.
+  </Card>
+  <Card title="Live Secrets Sync" icon="satellite-dish">
+    Runtime `process.env` mutations are broadcast to the ESM loader thread via `MessageChannel` immediately.
+  </Card>
+  <Card title="Automatic NO_PROXY" icon="circle-xmark">
+    Loopback addresses and `exclusions.domains` are automatically added to `NO_PROXY`/`no_proxy`.
   </Card>
 </CardGroup>
 

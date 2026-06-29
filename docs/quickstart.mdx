@@ -1,6 +1,6 @@
 ---
 title: "Quickstart"
-description: "Get envtrap protecting your Node.js app in under 60 seconds."
+description: "Get envtrap v2.1 protecting your Node.js app in under 60 seconds."
 ---
 
 <img
@@ -47,10 +47,12 @@ envtrap run node app.js
 ```
 
 That's it. envtrap now:
-- Starts an in-memory MITM TLS proxy and routes all outbound HTTP/HTTPS through it
+- Starts a native-RSA in-memory MITM TLS proxy and routes all outbound HTTP/HTTPS through it
+- Automatically sets `NO_PROXY` for loopback addresses so local Redis, Docker, and sidecar services are never proxied
 - Scans stdout and stderr streams for secrets in real time
 - Intercepts all `child_process` spawns to check if secrets are passed via `options.env`
 - Intercepts all DNS lookups for exact secret matches and high-entropy subdomain patterns
+- Wraps `process.env` to detect and broadcast runtime-rotated credentials to the ESM loader thread
 
 ## Step 3 — Read the startup output
 
@@ -65,22 +67,26 @@ On every run, envtrap prints a startup banner and configuration summary to stder
   ℹ  [envtrap]   - child_process: [WARN]
   ℹ  [envtrap]   - dns: [BLOCK]
 
- ⚠  envtrap v2.0
+ ⚠  envtrap v2.1.0
     Monitoring: node app.js
     Channels: stdout/stderr · HTTPS MITM · child_process · ESM hooks
 ```
 
 When a leak is detected:
 ```
- 🌐 SECRET LEAK DETECTED   2026-06-13T12:00:00.000Z
+ 🌐 SECRET LEAK DETECTED   2026-06-29T14:05:32.203Z
 ────────────────────────────────────────────────────────────
   Secret:  STRIPE_SECRET_KEY  (source: env)
-  Value:   [SHA256:baf2ae5634...]
+  Value:   [SHA256:56018fa55485...]
   Channel: 🌐  NETWORK
   Context:
     Outbound HTTPS Request Audited:
-    Destination Host: attacker.com
-    Request Line: POST /collect
+      Destination Host: attacker.com
+      Request Line:     POST /collect
+      Headers:
+        Authorization: Bearer [REDACTED: SHA256:56018fa5]
+────────────────────────────────────────────────────────────
+  ⚠  [envtrap] Network leak blocked: closing connection to attacker.com
 ```
 
 After your app exits, envtrap prints a summary:
@@ -121,6 +127,10 @@ Create `envtrap.json` in your project root for fine-grained control:
 }
 ```
 
+<Tip>
+  Domains listed in `exclusions.domains` are automatically added to `NO_PROXY` so they also bypass the MITM proxy without any extra configuration.
+</Tip>
+
 Validate your config:
 ```bash
 envtrap check
@@ -145,11 +155,26 @@ envtrap check
 
 | Channel | `"warn"` mode | `"block"` mode |
 |---|---|---|
-| `network` | Leak logged, request forwarded | Leak logged, connection terminated (`403`/socket destroy) |
+| `network` | Leak logged, request forwarded | Leak logged, connection terminated (socket destroy) |
 | `stdout` | Secret redacted in output, child continues | Child process killed via `SIGTERM` |
 | `stderr` | Secret redacted in output, child continues | Child process killed via `SIGTERM` |
 | `child_process` | Leak logged via stderr, spawn proceeds | Synchronous `Error` thrown, no OS fork |
 | `dns` | Leak logged, lookup proceeds | Synchronous `Error` thrown, no DNS packet sent |
+
+## Framework Compatibility
+
+envtrap hooks Node.js core modules, not your application layer — so it works with any framework:
+
+| Framework | Command |
+|---|---|
+| Express / Fastify | `envtrap run node server.js` |
+| NestJS | `envtrap run node dist/main.js` |
+| Next.js (server) | `envtrap run npm run start` |
+| Bare Node.js | `envtrap run node script.js` |
+
+<Warning>
+  Next.js and other frameworks that compile or bundle client-side code are covered only for server-side execution. Browser runtime code is not in scope.
+</Warning>
 
 ## Next Steps
 
