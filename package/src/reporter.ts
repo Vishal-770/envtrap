@@ -63,7 +63,7 @@ function divider(char = '─', width = 60): string {
 export function printBanner(command: string): void {
   if (isQuiet) return;
   console.error('');
-  console.error(chalk.bgRed.white.bold(' ⚠  envtrap v2.0.3  '));
+  console.error(chalk.bgRed.white.bold(' ⚠  envtrap v2.1.0  '));
   console.error(chalk.gray(`   Monitoring: ${chalk.white(command)}`));
   console.error(
     chalk.gray(

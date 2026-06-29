@@ -77,8 +77,8 @@ const program = new Command();
 
 program
   .name('envtrap')
-  .description('envtrap v2.0 — Zero-Configuration Runtime Secret Leak Detector')
-  .version('2.0.3');
+  .description('envtrap v2.1 — Zero-Configuration Runtime Secret Leak Detector')
+  .version('2.1.0');
 
 program
   .command('check')
