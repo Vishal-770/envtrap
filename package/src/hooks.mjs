@@ -10,7 +10,7 @@
 // Works for both ESM (import) and CJS (require).
 
 import module from 'node:module';
-import { isMainThread } from 'node:worker_threads';
+import { isMainThread, MessageChannel } from 'node:worker_threads';
 import * as realChildProcess from 'node:child_process';
 import * as realDns from 'node:dns';
 
@@ -150,13 +150,30 @@ function checkHighEntropyDns(specifier) {
 // Shared Interception Logic (CJS & ESM)
 // ---------------------------------------------------------------------------
 
-const secretsMap = (() => {
+// Mutable — updated at startup from env, and live-patched via MessagePort
+let secretsMap = (() => {
   try {
     return JSON.parse(process.env.__ENVTRAP_SECRETS_MAP__ || '{}');
   } catch {
     return {};
   }
 })();
+
+// ---------------------------------------------------------------------------
+// ESM Loader Hook: initialize
+// Receives the MessagePort from the main thread when module.register() is called.
+// Listens for live secrets map updates sent over the port.
+// ---------------------------------------------------------------------------
+export function initialize(data) {
+  if (data && data.port) {
+    data.port.on('message', (msg) => {
+      if (msg && msg.type === 'secrets_update' && typeof msg.secretsMap === 'object') {
+        secretsMap = msg.secretsMap;
+      }
+    });
+    data.port.unref(); // Don't hold the event loop open
+  }
+}
 
 function reportChildLeak(envKey, envValue, command) {
   process.stderr.write(
@@ -466,10 +483,71 @@ if (isMainThread) {
     }
     return originalStderrWrite.apply(process.stderr, arguments);
   };
-}
 
-if (isMainThread && typeof module.register === 'function') {
-  module.register(import.meta.url);
+  // ---------------------------------------------------------------------------
+  // Real-Time Secrets Synchronization via MessageChannel
+  //
+  // Set up a MessageChannel. port2 is transferred to the ESM loader thread via
+  // module.register()'s data argument. port1 stays here in the main thread.
+  //
+  // A Proxy wrapper on process.env watches for runtime set/delete mutations.
+  // When a property is added, updated, or removed that looks like a secret,
+  // the updated secretsMap is serialized and broadcast to the loader thread
+  // so it can scan new runtime-rotated credentials immediately.
+  // ---------------------------------------------------------------------------
+  if (typeof module.register === 'function') {
+    const { port1, port2 } = new MessageChannel();
+
+    // Transfer port2 to the loader thread
+    module.register(import.meta.url, { data: { port: port2 }, transferList: [port2] });
+
+    // Helper: broadcast the current secretsMap to the loader thread
+    function broadcastSecrets() {
+      try {
+        port1.postMessage({ type: 'secrets_update', secretsMap });
+      } catch {
+        // Port may be closed if loader thread exits; safe to ignore
+      }
+    }
+
+    // Helper: check if a value looks like a tracked secret value
+    function isTrackedSecretValue(value) {
+      if (typeof value !== 'string') return false;
+      for (const name in secretsMap) {
+        if (secretsMap[name] === value) return true;
+      }
+      return false;
+    }
+
+    // Wrap process.env in a Proxy to detect runtime mutations
+    const rawEnv = process.env;
+    // @ts-ignore — intentional dynamic Proxy
+    process.env = new Proxy(rawEnv, {
+      set(target, prop, value) {
+        const changed = target[prop] !== value;
+        target[prop] = value;
+        // If this is a new or updated value that looks like a secret,
+        // optimistically add it to secretsMap and broadcast
+        if (changed && typeof prop === 'string' && typeof value === 'string'
+            && value.length >= entropyMinLength) {
+          secretsMap[prop] = value;
+          broadcastSecrets();
+        }
+        return true;
+      },
+      deleteProperty(target, prop) {
+        const existed = prop in target;
+        delete target[prop];
+        if (existed && typeof prop === 'string' && prop in secretsMap) {
+          delete secretsMap[prop];
+          broadcastSecrets();
+        }
+        return true;
+      }
+    });
+
+    port1.unref(); // Don't hold the event loop open
+  }
 }
 
 const CHILD_PROCESS_URLS = new Set(['node:child_process', 'child_process']);

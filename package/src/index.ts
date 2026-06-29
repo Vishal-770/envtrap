@@ -203,6 +203,19 @@ async function runCommand(
     secretsMap[s.name] = s.value;
   }
 
+  // Build NO_PROXY list — merge loopback defaults, user-configured exclusion
+  // domains, and any pre-existing NO_PROXY value from the user's environment.
+  // This prevents local Redis, Docker sidecars, and Kubernetes services from
+  // being routed through the MITM proxy engine unnecessarily.
+  const LOOPBACK_DEFAULTS = ['localhost', '127.0.0.1', '::1', '0.0.0.0', '127.*'];
+  const userNoProxy = (process.env.NO_PROXY || process.env.no_proxy || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const noProxyList = Array.from(
+    new Set([...LOOPBACK_DEFAULTS, ...config.exclusions.domains, ...userNoProxy])
+  ).join(',');
+
   const childEnv: NodeJS.ProcessEnv = {
     ...process.env,
     ...(mitmEnabled && proxyPort > 0
@@ -211,6 +224,8 @@ async function runCommand(
           HTTPS_PROXY: `http://127.0.0.1:${proxyPort}`,
           http_proxy: `http://127.0.0.1:${proxyPort}`,
           https_proxy: `http://127.0.0.1:${proxyPort}`,
+          NO_PROXY: noProxyList,
+          no_proxy: noProxyList,
         }
       : {}),
     ...(mitmEnabled && caCertPath
