@@ -137,13 +137,13 @@ Create `envtrap.json` in your project root for fine-grained control. All fields 
 
 Each key accepts `"block"`, `"warn"`, or `"off"`:
 
-| Channel | Default | Description |
-|---|---|---|
-| `stdout` | `warn` | Scans every write to process.stdout, redacts secrets |
-| `stderr` | `warn` | Scans every write to process.stderr, redacts secrets |
-| `network` | `block` | MITM proxy intercepts all HTTP/HTTPS traffic |
-| `child_process` | `warn` | Checks `options.env` on all spawn/exec/fork calls |
-| `dns` | `block` | Intercepts all `node:dns` resolution calls |
+| Channel         | Default | Description                                          |
+|-----------------|---------|------------------------------------------------------|
+| `stdout`        | `warn`  | Scans every write to process.stdout, redacts secrets |
+| `stderr`        | `warn`  | Scans every write to process.stderr, redacts secrets |
+| `network`       | `block` | MITM proxy intercepts all HTTP/HTTPS traffic         |
+| `child_process` | `warn`  | Checks `options.env` on all spawn/exec/fork calls    |
+| `dns`           | `block` | Intercepts all `node:dns` resolution calls           |
 
 ### `exclusions`
 
@@ -191,14 +191,14 @@ Each candidate value is tested through the `looksLikeSecret` gate:
 
 ### Built-in Token Patterns
 
-| Provider | Pattern |
-|---|---|
-| Stripe | `sk_live_...` or `sk_test_...` followed by 24+ alphanumerics |
-| AWS Access Key ID | `AKIA[0-9A-Z]{16}` |
-| GitHub Personal Access Token | `ghp_[a-zA-Z0-9]{36}` |
-| Generic Bearer Token | `Bearer\s+[a-zA-Z0-9\-._~+/]{20,}` |
-| SendGrid API Key | `SG\.[a-zA-Z0-9\-_]{22}\.[a-zA-Z0-9\-_]{43}` |
-| Slack Bot Token | `xoxb-[0-9]{11,13}-[0-9]{11,13}-[a-zA-Z0-9]{24}` |
+| Provider                     | Pattern                                                    |
+|------------------------------|------------------------------------------------------------|
+| Stripe                       | `sk_live_...` or `sk_test_...` followed by 24+ chars      |
+| AWS Access Key ID            | `AKIA[0-9A-Z]{16}`                                        |
+| GitHub Personal Access Token | `ghp_[a-zA-Z0-9]{36}`                                     |
+| Generic Bearer Token         | `Bearer` + 20+ alphanumeric/symbol chars                  |
+| SendGrid API Key             | `SG.` + 22 chars + `.` + 43 chars                         |
+| Slack Bot Token              | `xoxb-` + numeric segments + 24 alphanumeric chars        |
 
 ### Runtime Secret Rotation
 
@@ -281,14 +281,14 @@ envtrap never logs secret values. It uses SHA-256 fingerprinting:
 
 ## What's New in v2.1.0
 
-| Fix | Change |
-|---|---|
-| Native RSA key generation | Reduced TLS cert synthesis from ~200ms to ~5ms using `crypto.generateKeyPairSync` |
-| Sliding-window chunk scanner | Eliminated O(n²) `Buffer.concat` in the MITM proxy TCP handler |
-| Shell injection prevention | All system CA tooling migrated from `execSync` templates to `execFileSync` array args |
-| RFC 5280-compliant serials | Certificate serial numbers use `crypto.randomBytes(20)` instead of `Date.now()` |
-| Real-time ESM loader sync | `MessageChannel` + `process.env` Proxy broadcasts runtime secret rotations instantly |
-| Automatic `NO_PROXY` injection | Loopback and excluded domains bypass the MITM proxy automatically |
+| Fix                            | Change                                                                              |
+|--------------------------------|-------------------------------------------------------------------------------------|
+| Native RSA key generation      | TLS cert synthesis reduced from ~200ms to ~5ms using `crypto.generateKeyPairSync`   |
+| Sliding-window chunk scanner   | Eliminated O(n²) `Buffer.concat` in the MITM proxy TCP handler                     |
+| Shell injection prevention     | CA tooling migrated from `execSync` templates to `execFileSync` argument arrays     |
+| RFC 5280-compliant serials     | Certificate serials now use `crypto.randomBytes(20)` instead of `Date.now()`        |
+| Real-time ESM loader sync      | `MessageChannel` + `process.env` Proxy broadcasts secret rotations instantly        |
+| Automatic `NO_PROXY` injection | Loopback and excluded domains bypass the MITM proxy automatically                   |
 
 ---
 
